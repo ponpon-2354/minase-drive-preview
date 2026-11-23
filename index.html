@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>水瀬市ドライブ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: PS2時代の国産ドライブゲームのメニュー。夕暮れの地方都市。
+   IDEA: カーナビとメーター照明。黒地にアンバーと信号の青緑。
+   PICTURE: 3Dの街そのもの（タイトル背景は街の空撮）。
+   COLOUR/TYPE: 墨色 #0d0f14、アンバー #ffb63a、信号青緑 #19c3a0。M PLUS 1p。
+   LAYOUT: 画面全体が3D。UIは四隅に小さく、操作ボタンは親指の位置。 */
+:root{color-scheme:dark;--ink:#f3efe6;--amb:#ffb63a;--teal:#19c3a0;--bg:#0d0f14;--pan:rgba(13,15,20,.78)}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overscroll-behavior:none;-webkit-text-size-adjust:100%;-webkit-touch-callout:none;background:#000;overflow:hidden;color:var(--ink);font:15px/1.5 'M PLUS 1p','Hiragino Sans','Noto Sans JP',sans-serif;user-select:none;-webkit-user-select:none;touch-action:none}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.scr{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 16px 16px}
+.scr.on{display:flex}
+.panel{background:var(--pan);border:1px solid rgba(255,182,58,.35);border-radius:6px;padding:18px 20px;width:min(560px,100%);max-height:calc(100% - 8px);overflow:auto;backdrop-filter:blur(3px)}
+h2{margin:0 0 12px;font-size:20px;color:var(--amb);font-weight:800}
+.logo{text-align:center;margin-bottom:18px}
+.logo b{display:block;font-size:clamp(34px,7vw,56px);line-height:1.05;font-weight:800;letter-spacing:.02em;color:#fff;text-shadow:0 3px 0 #b5461a,0 6px 18px rgba(0,0,0,.7)}
+.logo span{display:block;color:var(--amb);font-weight:700;letter-spacing:.3em;font-size:13px;margin-top:6px}
+.menu{display:grid;gap:8px;width:min(300px,100%);margin:0 auto}
+button{font:inherit;color:var(--ink);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.18);border-radius:4px;min-height:44px;padding:8px 14px;cursor:pointer;font-weight:700;letter-spacing:.06em}
+button:hover,button:focus-visible{border-color:var(--amb);color:var(--amb);outline:none}
+button.pri{background:var(--amb);color:#1a1205;border-color:var(--amb)}
+#title{flex-direction:column;background:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.55))}
+#title .menu button{background:rgba(10,12,16,.82)}#title .menu button.pri{background:var(--amb)}
+#title .note{position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:12px;opacity:.7}
+.row{display:grid;grid-template-columns:9em minmax(0,1fr);gap:10px;align-items:center;margin:8px 0}
+.row label{font-size:14px;opacity:.9}
+select,input[type=range]{width:100%;font:inherit;font-size:16px;min-height:36px;background:#1b1e26;color:var(--ink);border:1px solid #3a3e48;border-radius:4px}
+.chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0}
+.chip{width:52px;height:52px;border-radius:50%;border:3px solid rgba(255,255,255,.3);padding:0}
+.chip.on{border-color:var(--amb);box-shadow:0 0 0 3px rgba(255,182,58,.3)}
+#select{align-items:flex-end}
+#select .panel{text-align:center;margin-bottom:4px;padding:10px 14px}#select h2{font-size:16px;margin-bottom:4px}#select .chip{width:44px;height:44px}#select .chips{margin:6px 0}
+.drv{display:flex;gap:6px;align-items:center;justify-content:center;margin:4px 0}.drv select{width:auto;min-height:32px}.drv label{font-size:13px;opacity:.85}
+.cname{font-weight:700;font-size:16px;min-height:1.5em}
+.btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.howto p{margin:6px 0;font-size:14px}.howto kbd{background:#2a2e38;border-radius:3px;padding:0 6px;font-family:inherit}
+.small{font-size:12px;opacity:.75}
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;display:none}
+#hud.on{display:block}
+#spd{position:absolute;right:calc(max(12px,env(safe-area-inset-right)) + 98px);bottom:calc(14px + env(safe-area-inset-bottom));text-align:right;text-shadow:0 2px 4px #000}
+#spd.rev .v{color:#ff5a4a;text-shadow:0 0 10px rgba(255,60,60,.9)}#spd.eco .v{color:#7dffa6}#spd.eco #rpm i{background:#3fd27a}
+#ind2{display:flex;gap:6px;justify-content:flex-end;margin-top:3px;font-size:11px;font-weight:800}#ind2 b{display:none;padding:1px 5px;border-radius:3px}#ind2 b.on{display:inline-block}#iEco{background:#1f8a4c}#iIS{background:#1c6c9a}#iLim{background:#fff;color:#c0392b;border:2px solid #c0392b;border-radius:9px!important}#iKeep{background:#5a3}#iAc{background:#357}
+#spd .v{font-size:44px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
+#spd .u{font-size:12px;color:var(--amb)}
+#rpm{width:130px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;margin:4px 0 0 auto;overflow:hidden}#rpm i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--amb) 75%,#ff4b3a)}
+#ind{display:flex;gap:8px;justify-content:flex-end;margin-top:4px;font-size:13px;font-weight:800}
+#ind b{opacity:.2;transition:opacity .05s}#ind b.on{opacity:1}
+#gear{color:var(--amb)}
+#mm{position:absolute;left:max(10px,env(safe-area-inset-left));top:max(10px,env(safe-area-inset-top));width:130px;height:130px;border-radius:50%;border:2px solid rgba(255,182,58,.5);background:#111}
+#info{position:absolute;left:max(150px,calc(env(safe-area-inset-left) + 150px));top:calc(max(8px,env(safe-area-inset-top)) + 46px);font-size:13px;text-shadow:0 1px 3px #000;line-height:1.35}
+#info .d{color:var(--amb);font-weight:700}
+#dbg{position:absolute;left:max(10px,env(safe-area-inset-left));bottom:calc(110px + env(safe-area-inset-bottom));font-size:11px;opacity:.75;white-space:pre;text-shadow:0 1px 2px #000}
+#nav{position:absolute;left:50%;top:max(10px,env(safe-area-inset-top));transform:translateX(-50%);background:rgba(10,40,90,.78);padding:4px 12px;border-radius:6px;font-weight:800;font-size:15px;display:none;white-space:nowrap}#nav.on{display:block}
+#iAeb{position:absolute;left:50%;top:38%;transform:translateX(-50%);background:#d23;color:#fff;font-weight:900;font-size:22px;padding:6px 18px;border-radius:6px;display:none}#iAeb.on{display:block}
+#gear.rev{color:#fff;background:#d23;padding:0 6px;border-radius:3px;font-size:18px}
+.tb.rev{background:rgba(220,40,40,.75);border-color:#fff}
+#map{z-index:6;background:#111;flex-direction:column}#mapC{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.mapbar{position:absolute;left:0;right:0;bottom:calc(8px + env(safe-area-inset-bottom));display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:13px;text-shadow:0 1px 2px #000}
+#toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);background:var(--pan);padding:8px 14px;border-radius:4px;font-weight:700;opacity:0;transition:opacity .3s;white-space:nowrap}
+#toast.on{opacity:1}
+#trainBan{position:absolute;left:50%;top:calc(22% + 42px);transform:translateX(-50%);background:rgba(20,70,45,.88);border:1px solid rgba(255,255,255,.25);padding:6px 12px;border-radius:4px;font-weight:700;font-size:13px;white-space:nowrap;display:none}#trainBan.on{display:block}
+/* v0.8.0 長距離：曲名チップ（押すと次の曲）、次の曲ボタン、同乗者のセリフ・ラジオ案内の字幕 */
+#ldSong{position:absolute;right:max(10px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + 46px + 132px);background:rgba(10,14,20,.66);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700;display:none;pointer-events:auto;cursor:pointer;max-width:46vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.pc #ldSong{top:calc(max(10px,env(safe-area-inset-top)) + 132px)}
+body.ld #ldSong{display:block}#ldSong.off{opacity:.6}#ldSong.flash{animation:ldsf .5s}@keyframes ldsf{0%{background:#ffb63a;color:#000}100%{}}
+#tNext{display:none}body.ld #tNext{display:flex}
+#ldSub{position:absolute;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(640px,70vw);background:rgba(0,0,0,.55);border-radius:6px;padding:6px 12px;font-size:15px;line-height:1.4;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 2px #000}
+body.pc #ldSub{bottom:calc(70px + env(safe-area-inset-bottom))}
+#ldSub.on{opacity:1}#ldSub b{display:block;font-size:11px;color:#ffd37a;font-weight:700}#ldSub.radio{background:rgba(20,40,70,.7)}#ldSub.radio b{color:#8fd0ff}
+@media (max-height:500px){#ldSub{font-size:12.5px;bottom:calc(36% + env(safe-area-inset-bottom));max-width:50vw;padding:4px 9px} body.ld:not(.pc) #ldSong{top:auto;bottom:calc(44% + env(safe-area-inset-bottom));right:auto;left:50%;transform:translateX(-50%);font-size:11px}}
+/* タッチ操作（修正88：L字の2段レイアウト。最下段＝◀ ▶（左）とアクセル（右・縦スライド）、その上＝ブレーキとD/R。ボタン類は最上部へ） */
+#touch{position:fixed;inset:0;display:none;pointer-events:none;--sl:max(12px,env(safe-area-inset-left));--sr:max(12px,env(safe-area-inset-right));--sb:calc(14px + env(safe-area-inset-bottom));--st:max(8px,env(safe-area-inset-top))}
+#touch.on{display:block}
+.tb{position:absolute;pointer-events:auto;touch-action:none;-webkit-user-select:none;user-select:none;background:rgba(20,22,28,.45);border:2px solid rgba(255,255,255,.28);border-radius:14px;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:15px;letter-spacing:.04em}
+.tb.on{background:rgba(255,182,58,.45);border-color:var(--amb)}
+#bL,#bR{width:84px;height:76px;bottom:var(--sb);font-size:30px}
+#bL{left:var(--sl)}#bR{left:calc(var(--sl) + 94px)}
+#bB{left:var(--sl);bottom:calc(var(--sb) + 86px);width:112px;height:72px;font-size:17px}
+#bDR{left:calc(var(--sl) + 122px);bottom:calc(var(--sb) + 86px);width:56px;height:72px;font-size:24px}
+#bDR.rev{background:rgba(220,40,40,.85);border-color:#fff;box-shadow:0 0 14px rgba(255,60,60,.9)}
+#bA{right:var(--sr);bottom:var(--sb);width:86px;height:min(42vh,200px);flex-direction:column;justify-content:flex-start;padding-top:10px;overflow:hidden;
+  background:linear-gradient(0deg,rgba(40,140,80,.45) 0,rgba(40,140,80,.45) 38%,rgba(20,22,28,.45) 38%)}
+#bA .lv{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(255,182,58,.35);pointer-events:none}
+#bA .eco{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:11px;color:#bff5cf;pointer-events:none}
+#bA .eco2{position:absolute;bottom:38%;left:6px;right:6px;border-top:1px dashed rgba(255,255,255,.45);pointer-events:none}
+#bA.keep{border-color:#5fe08a;box-shadow:0 0 12px rgba(95,224,138,.8)}
+/* 修正100：速度キープまでの進み具合（上端のバーが1.0秒で満ちる）と作動時の点滅 */
+#bA .kpw{position:absolute;top:30px;left:8px;right:8px;height:7px;border-radius:4px;background:rgba(255,255,255,.18);opacity:0;transition:opacity .15s;pointer-events:none}
+#bA .kp{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;background:#5fe08a}
+#bA .kpt{position:absolute;top:40px;left:0;right:0;text-align:center;font-size:10px;color:#cfe;opacity:0;pointer-events:none}
+#bA.arm .kpw,#bA.arm .kpt{opacity:1}
+#bA.keep .kpw{opacity:1}#bA.keep .kp{width:100%!important}
+#bA.flash{animation:kflash .7s ease-out}
+@keyframes kflash{0%{background:rgba(95,224,138,.85)}100%{background:rgba(0,0,0,.35)}}
+/* 修正99-1：左右のウインカーは同じ高さ（左のブレーキ列とアクセルの高いほうの上） */
+#tWL,#tWR{width:52px;height:46px;font-size:20px;bottom:calc(var(--sb) + max(168px, min(42vh,200px) + 12px))}
+#tWL{left:var(--sl)}#tWR{right:var(--sr)}
+#tWL.on,#tWR.on{background:rgba(80,200,90,.6)}
+.tops{position:absolute;left:calc(max(10px,env(safe-area-inset-left)) + 140px);right:var(--sr);top:var(--st);display:flex;gap:5px;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end}
+.tops .tb{position:static;width:auto;min-width:44px;height:40px;padding:0 9px;font-size:12.5px;border-radius:8px}
+body.pc #spd{right:max(14px,env(safe-area-inset-right))}
+@media (orientation:portrait){#info{top:calc(max(8px,env(safe-area-inset-top)) + 92px);left:max(12px,env(safe-area-inset-left))!important;top:calc(max(8px,env(safe-area-inset-top)) + 142px)}#bA{height:min(30vh,210px)}#tWL,#tWR{bottom:calc(var(--sb) + max(168px, min(30vh,210px) + 12px))}}
+#bench{z-index:5;background:rgba(0,0,0,.4)}
+#load{flex-direction:column;gap:12px;background:#000}
+#load .bar{width:min(320px,80vw);height:6px;background:#222;border-radius:3px;overflow:hidden}#load .bar i{display:block;height:100%;width:0;background:var(--amb);transition:width .2s}
+#err{color:#ff8a7a;max-width:90vw;text-align:center}
+/* v0.7.0 長距離ドライブ */
+#title .menu button.ldb{background:linear-gradient(90deg,rgba(25,195,160,.85),rgba(30,120,200,.85));color:#fff;border-color:#19c3a0}
+#ldset{justify-content:flex-end;align-items:stretch;background:linear-gradient(90deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.35))}
+#ldset .panel{width:min(600px,64vw);max-height:100%}
+@media (orientation:portrait){#ldset{align-items:flex-end}#ldset .panel{width:100%;max-height:62%}}
+.lds{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.ldsc{display:flex;flex-direction:column;gap:2px;padding:4px;min-height:0;text-align:left;letter-spacing:0}.ldsc canvas{width:100%;height:auto;border-radius:3px;display:block}.ldsc b{font-size:12px}.ldsc span{font-size:10px;font-weight:500;opacity:.8;line-height:1.3}
+.ldsc.on{border-color:var(--amb);box-shadow:0 0 0 2px rgba(255,182,58,.5);background:rgba(255,182,58,.12)}
+@media (max-width:640px){.lds{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ldn{display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap}.ldn b{margin-right:4px}.ldn button{min-height:36px;padding:4px 10px}.ldn button.on{background:var(--amb);color:#1a1205}
+.ldp{display:grid;grid-template-columns:5em repeat(4,minmax(0,1fr));gap:4px;align-items:center;margin:4px 0}.ldp select{font-size:13px;min-height:34px;padding:0 2px}
+@media (max-width:520px){.ldp{grid-template-columns:repeat(2,minmax(0,1fr))}.ldp b{grid-column:1/-1}}
+.lderr{color:#ffb0a0;min-height:1.3em;font-size:13px;font-weight:700}
+.ldt{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}.ldt th{text-align:left;color:var(--amb);font-weight:700;padding:4px 8px 4px 0;white-space:nowrap;vertical-align:top;width:6.5em}.ldt td{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+#ldhud{position:absolute;right:max(10px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + 46px);background:rgba(10,14,20,.72);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;display:none;min-width:220px;max-width:46vw;text-shadow:0 1px 2px #000}
+body.pc #ldhud{top:max(10px,env(safe-area-inset-top))}
+body.ld #ldhud{display:block}body.ld #info{display:none}
+#ldhud .r{display:flex;justify-content:space-between;gap:10px}#ldhud .r b{color:var(--amb);font-weight:700}#ldhud .big{font-size:17px;font-weight:800}
+#ldhud .fat{height:7px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden;margin:2px 0}#ldhud .fat i{display:block;height:100%;width:0;background:#7fe08a}
+#ldhud.warn{border-color:#ff8a3a}#ldhud.alert{border-color:#ff4b3a;animation:ldal 1s infinite}#ldhud.alert #ldFat{color:#ff6a5a;font-weight:900;font-size:14px}
+/* スマホ横画面：HUDを上中央（ミニマップとウインカーの間）に小さく、案内（トースト）はその下へ */
+@media (max-height:500px){body.ld:not(.pc) #ldhud{left:50%;right:auto;transform:translateX(-50%);top:calc(max(6px,env(safe-area-inset-top)) + 40px);font-size:10.5px;line-height:1.22;padding:3px 7px;min-width:0;width:min(250px,40vw);max-width:none}
+ body.ld:not(.pc) #ldhud .big{font-size:14px} body.ld:not(.pc) #ldhud .fat{height:5px;margin:1px 0}
+ body.ld:not(.pc) #toast{top:auto;bottom:calc(30% + env(safe-area-inset-bottom));white-space:normal;max-width:48vw;text-align:center;font-size:13px}}
+@keyframes ldal{50%{box-shadow:0 0 14px rgba(255,75,58,.9)}}
+@media (orientation:portrait){#ldhud{top:calc(max(8px,env(safe-area-inset-top)) + 142px);max-width:60vw}}
+#cut{position:fixed;inset:0;display:none;z-index:8;pointer-events:none}#cut.on{display:block}
+#cutFade{position:absolute;inset:0;background:#000;opacity:1}
+#cut .bars{position:absolute;left:0;right:0;height:7vh;background:#000}#cut .bars.t{top:0}#cut .bars.b{bottom:0}
+#cutTitle{position:absolute;left:0;right:0;top:16%;text-align:center;font-size:clamp(20px,4vw,34px);font-weight:800;color:#fff;text-shadow:0 2px 10px #000;opacity:0;transition:opacity .8s}#cutTitle.on{opacity:1}
+#cutSub{position:absolute;left:8%;right:8%;bottom:calc(9vh + env(safe-area-inset-bottom));text-align:center;font-size:clamp(14px,2.6vw,20px);font-weight:700;color:#fff;text-shadow:0 2px 4px #000,0 0 8px #000}#cutSub b{color:var(--amb);margin-right:4px}#cutSub i{font-style:normal;color:#e6f0ff}
+#cutInfo{position:absolute;left:max(12px,env(safe-area-inset-left));top:calc(7vh + 8px);font-weight:800;color:#fff;text-shadow:0 1px 3px #000}
+#cutSkip{position:absolute;right:max(12px,env(safe-area-inset-right));top:calc(7vh + 6px);pointer-events:auto;background:rgba(0,0,0,.55)}
+#cut.photo::after{content:'記念写真';position:absolute;inset:12% 18%;border:6px solid #fff;box-shadow:0 0 0 2000px rgba(0,0,0,.25);color:#fff;font-weight:800;display:flex;align-items:flex-end;justify-content:flex-end;padding:8px 12px;font-size:18px}
+#cut.flash #cutFade{opacity:.9!important;background:#fff}
+#ldclear .panel{text-align:center}.ldclear{font-size:clamp(40px,9vw,72px);font-weight:900;color:#fff;letter-spacing:.12em;text-shadow:0 3px 0 #b5461a,0 6px 18px rgba(0,0,0,.7)}
+#ldclear .ldt{text-align:left}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="load" class="scr on"><div class="logo"><b>水瀬市ドライブ</b><span>MINASE DRIVE</span></div><div class="bar"><i id="lbar"></i></div><div id="lmsg" class="small">街を生成しています…</div><div id="err"></div></div>
+
+<div id="title" class="scr">
+  <div class="logo"><b>水瀬市ドライブ</b><span>MINASE DRIVE ・ 地方都市オープンワールド</span></div>
+  <div class="menu">
+    <button id="mContinue" class="pri" hidden>CONTINUE（つづきから）</button>
+    <button id="mStart">市街地散策（GAME START）</button>
+    <button id="mLD" class="ldb">長距離ドライブ（四季の観光旅行）</button>
+    <button id="mLDCont" hidden>長距離ドライブのつづき</button>
+    <button id="mVehicle">VEHICLE SELECT</button>
+    <button id="mSettings">SETTINGS</button>
+    <button id="mHow">HOW TO PLAY</button>
+  </div>
+  <div class="note">開発版 v0.7.0（市街地散策：約4km四方 ／ 長距離ドライブ：400km・四季4コース）／ 横画面推奨</div>
+</div>
+
+<div id="select" class="scr">
+  <div class="panel">
+    <h2>VEHICLE SELECT　ダイハツ ミライース</h2>
+    <div class="chips" id="chips"></div>
+    <div class="cname" id="cname"></div>
+    <div class="drv"><label>運転者</label><select id="dAge"><option value="0">青年</option><option value="1">壮年</option><option value="2">老人</option></select><select id="dSex"><option value="0">男性</option><option value="1">女性</option></select><select id="dOut"><option value="0">普段着</option><option value="1">カジュアル</option><option value="2">スーツ</option></select></div>
+    <div class="btns"><button id="selBack">もどる</button><button id="selOk" class="pri">この色で決定</button></div>
+    <div class="small">※車両はローポリの仮モデルです（実車ロゴ・エンブレムなし）。運転者は18通りから選べます</div>
+  </div>
+</div>
+
+<div id="settings" class="scr">
+  <div class="panel">
+    <h2>SETTINGS</h2>
+    <div class="row"><label for="sTime">時間帯</label><select id="sTime"><option value="7">朝 7:00</option><option value="12">昼 12:00</option><option value="17.5">夕方 17:30</option><option value="21">夜 21:00</option><option value="keep">現在のまま</option></select></div>
+    <div class="row"><label for="sFlow">時間の流れ</label><select id="sFlow"><option value="0">止める</option><option value="1">普通（1日=24分）</option><option value="6">速い（1日=4分）</option></select></div>
+    <div class="row"><label for="sWeather">天候</label><select id="sWeather"><option value="auto">自動で変化</option><option value="clear">晴れ</option><option value="cloudy">曇り</option><option value="rain">雨</option></select></div>
+    <div class="row"><label for="sCamD">カメラ距離</label><input type="range" id="sCamD" min="3.5" max="10" step="0.1"></div>
+    <div class="row"><label for="sCamH">カメラ高さ</label><input type="range" id="sCamH" min="1.2" max="4" step="0.1"></div>
+    <div class="row"><label for="sNpc">交通量</label><select id="sNpc"><option value="0.7">少なめ（×0.7）</option><option value="1">標準（×1.0）</option><option value="1.2">多め（×1.2）</option></select></div>
+    <div class="row"><label for="sLim">制限速度リミッター</label><select id="sLim"><option value="0">OFF</option><option value="1">ON（道路の制限速度を超えない）</option></select></div>
+    <div class="row note" style="display:block;font-size:11px;opacity:.8">リミッターは前進のときだけ働きます（後退はもともと低速のため対象外）。生活道路は30km/h、農道は40km/h、ほかは道路標識の制限速度。</div>
+    <div class="row"><label for="sAc">エアコン</label><select id="sAc"><option value="0">OFF</option><option value="1">ON（わずかに力が落ちる）</option></select></div>
+    <div class="row"><label for="sIs">アイドリングストップ</label><select id="sIs"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sAeb">衝突被害軽減ブレーキ</label><select id="sAeb"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sAmb">環境音・夕方のチャイム</label><select id="sAmb"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sAuto">性能自動調整</label><select id="sAuto"><option value="1">ON（重いと台数・解像度を下げる）</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sDraw">描画距離</label><input type="range" id="sDraw" min="200" max="650" step="10"></div>
+    <div class="row"><label for="sDet">細部の表示距離</label><input type="range" id="sDet" min="120" max="500" step="10"></div>
+    <div class="row"><label for="sRes">解像度</label><input type="range" id="sRes" min="0.5" max="1" step="0.05"></div>
+    <div class="row"><label for="sBgm">BGM</label><select id="sBgm"><option value="auto">自動（場所・時間・天気）</option><option value="pop">Minase City Pop（昼の街）</option><option value="night">Midnight Bypass（夜）</option><option value="rain">Rainy Window（雨）</option><option value="euro">Minase Touge Beat（峠）</option><option value="country">Sunday Countryside（田園）</option><option value="off">OFF</option></select></div>
+    <div class="row"><label for="sLdBgm">長距離ドライブのBGM</label><select id="sLdBgm"><option value="1">ON（季節の曲をシャッフル再生）</option><option value="0">OFF（エンジン音・環境音のみ）</option></select></div>
+    <div class="row"><label for="sLdTalk">同乗者のセリフ（長距離）</label><select id="sLdTalk"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sLdRadio">ラジオ風の案内（長距離）</label><select id="sLdRadio"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sBgmVol">BGM音量</label><input type="range" id="sBgmVol" min="0" max="1" step="0.05"></div>
+    <div class="row"><label for="sVol">効果音量</label><input type="range" id="sVol" min="0" max="1" step="0.05"></div>
+    <div class="row"><label for="sAssist">運転アシスト</label><select id="sAssist"><option value="1">ON（横滑りを抑える）</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sDbg">情報表示</label><select id="sDbg"><option value="0">OFF</option><option value="1">ON（FPS・描画数）</option></select></div>
+    <div class="btns"><button id="sBench">性能測定（約50秒）</button><button id="sReset">セーブデータを消去</button><button id="setBack" class="pri">もどる</button></div>
+    <div class="small">性能測定は8か所を自動で回り、フレームレートを記録します。結果はコピーして共有できます。</div>
+  </div>
+</div>
+
+<div id="howto" class="scr">
+  <div class="panel howto">
+    <h2>HOW TO PLAY</h2>
+    <p><b>長距離ドライブ</b>：タイトルの「長距離ドライブ」で季節・人数・同乗者・座席を決めて出発。現実の45分がゲーム内の24時間、400kmを約5時間で走ります。連続運転が4時間に近づいたら、PA・SA・道の駅の減速車線から入口へ入ると45分の休憩（ムービーはスキップ可）。目的地に着くと到着ムービーとクリア画面。</p>
+    <p><b>スマホ</b>：左下 ◀ ▶ でハンドル、その上に <b>ブレーキ</b> と <b>D/R</b>（前進/後退、停止中に切替）。右下の <b>アクセル</b> は縦にスライド：下の緑の部分は<b>エコ運転</b>、上へずらすほど加速。指を1.0秒止めると<b>速度キープ</b>（ブレーキかスライドで解除）。ペダルを離すとクリープでゆっくり進み、ブレーキで止まり続けます。</p>
+    <p>上のボタン：<b>視点</b>（後方→運転席→ボンネット）、<b>ライト</b>（自動/ON/OFF）、<b>ホーン</b>、<b>BGM</b>、<b>地図</b>、<b>II</b> メニュー。<b>◁ ▷</b> ウインカーは画面の左右の端。</p>
+    <p><b>キーボード</b>：<kbd>↑</kbd><kbd>W</kbd> アクセル　<kbd>↓</kbd><kbd>S</kbd> ブレーキ　<kbd>←</kbd><kbd>→</kbd> ハンドル　<kbd>C</kbd> 視点　<kbd>L</kbd> ライト　<kbd>Q</kbd><kbd>E</kbd> ウインカー　<kbd>R</kbd> 前進/後退　<kbd>K</kbd> 速度キープ　<kbd>H</kbd> ホーン　<kbd>Esc</kbd> メニュー</p>
+    <p>街は「水瀬市」（架空・約4km四方）。中心市街地（駅前ロータリー・商店街・オフィス街・本町通り）、東の国道ロードサイド（片側3車線）とバイパス高架、西の工業団地、郊外住宅地、南の水瀬川と田園地帯、北の山にはトンネルのある峠道（みなせ峠）、南東には学園地区とニュータウンがあります。駐車場には自由に入って停められます。メニューの「ワープ」で各地へ移動できます。</p>
+    <p><b>BGM</b>ボタン（キーボードは <kbd>M</kbd>）で曲を切り替え。「自動」では場所・時間・天気に合わせて選曲します。<b>長距離ドライブ</b>では季節ごとの曲（各10曲）をシャッフル再生し、BGMボタン／<kbd>M</kbd> で ON/OFF、<b>次の曲</b>ボタン・画面右上の曲名・<kbd>B</kbd> キーで次の曲へ。同乗者のセリフとラジオ風の案内は設定で ON/OFF できます。</p>
+    <p>NPCの車は信号・一時停止・右折待ちを守り、駐車場にも出入りします。ぶつけないように走りましょう。</p>
+    <p class="small">位置・向き・色・時間・天候・設定は自動保存されます（ブラウザ内）。</p>
+    <div class="btns"><button id="howBack" class="pri">もどる</button></div>
+  </div>
+</div>
+
+<div id="pause" class="scr">
+  <div class="panel">
+    <h2>MENU</h2>
+    <div class="menu">
+      <button id="pResume" class="pri">ドライブに戻る</button>
+      <button id="pVehicle">車両カラー変更</button>
+      <button id="pSettings">設定</button>
+      <button id="pSave">セーブ</button>
+      <div class="row"><label for="pWarp">ワープ先</label><select id="pWarp"></select></div>
+      <button id="pRespawn">選んだ場所へワープ</button>
+      <button id="pTitle">タイトルへ</button>
+    </div>
+    <div class="small" id="pInfo" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div id="ldset" class="scr"><div class="panel" id="ldsBody"></div></div>
+<div id="ldclear" class="scr"><div class="panel"><div id="ldcBody"></div><div class="btns"><button id="ldcTitle">タイトルへ</button><button id="ldcSame" class="pri">同じ季節でもう一度</button><button id="ldcOther">別の季節で</button></div></div></div>
+<div id="cut"><div id="cutFade"></div><div class="bars t"></div><div class="bars b"></div><div id="cutTitle"></div><div id="cutInfo"></div><div id="cutSub"></div><button id="cutSkip">スキップ ▶▶</button></div>
+<div id="bench" class="scr"><div class="panel"><h2>性能測定の結果</h2><pre id="benchOut" style="white-space:pre-wrap;font-size:13px;user-select:text;-webkit-user-select:text"></pre><div class="btns"><button id="benchCopy" class="pri">結果をコピー</button><button id="benchClose">閉じる</button></div></div></div>
+<div id="hud">
+  <canvas id="mm" width="260" height="260"></canvas>
+  <div id="info"><div class="d" id="iDist"></div><div id="iTime"></div></div>
+  <div id="spd"><div class="v" id="sV">0</div><div class="u">km/h</div><div id="rpm"><i id="rpmI"></i></div>
+    <div id="ind"><b id="iWL">◀</b><b id="iLight">ライト</b><b id="gear">D</b><b id="iWR">▶</b></div><div id="ind2"><b id="iEco">ECO</b><b id="iIS">A アイドリングストップ</b><b id="iKeep">キープ</b><b id="iLim">LIM</b><b id="iAc">A/C</b></div></div>
+  <div id="nav"></div>
+  <div id="ldhud"><div class="r"><span class="big" id="ldTime">09:00</span><span id="ldWhere"></span></div>
+    <div class="r"><span>目的地 <b id="ldDest"></b></span><span>あと <b id="ldRemain"></b></span></div>
+    <div class="r"><span>到着予想 <b id="ldEta"></b></span><span>連続運転 <b id="ldCont"></b></span></div>
+    <div class="r"><span>疲労度</span><span id="ldFat"></span></div><div class="fat"><i id="ldFatBar"></i></div>
+    <div class="r"><span>次の休憩</span><b id="ldNext"></b></div></div>
+  <div id="iAeb">ブレーキ!</div>
+  <div id="dbg"></div>
+  <div id="toast"></div><div id="trainBan"></div><div id="ldSong" title="次の曲（B キー）"></div><div id="ldSub"></div>
+</div>
+<div id="map" class="scr"><canvas id="mapC"></canvas><div class="mapbar"><span id="mapMsg">地図をドラッグで移動・ピンチ/ホイールで拡大。タップで目的地を設定</span><button id="mapClear">目的地を消す</button><button id="mapClose" class="pri">閉じる</button></div></div>
+
+<div id="touch">
+  <div class="tb" id="bL">◀</div><div class="tb" id="bR">▶</div>
+  <div class="tb" id="bB">ブレーキ</div><div class="tb" id="bDR">D</div>
+  <div class="tb" id="bA"><i class="lv" id="bAlv"></i><span>アクセル</span><i class="kpw"><i class="kp" id="bAkp"></i></i><span class="kpt">指を止めるとキープ</span><i class="eco2"></i><span class="eco">ECO</span></div>
+  <div class="tb" id="tWL">◁</div><div class="tb" id="tWR">▷</div>
+  <div class="tops"><div class="tb" id="tCam">視点</div><div class="tb" id="tLight">ライト</div><div class="tb" id="tHorn">ホーン</div><div class="tb" id="tBgm">BGM</div><div class="tb" id="tNext">次の曲</div><div class="tb" id="tMap">地図</div><div class="tb" id="tMenu">II</div></div>
+</div>
+
+<script type="module" src="src/main.js?v=0.7.0"></script>
+</body>
+</html>
