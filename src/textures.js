@@ -1,5 +1,5 @@
 // テクスチャ配列（256x256 レイヤー）をCanvasで手続き生成。アルファ = 夜間発光マスク
-import { rng } from './math.js?v=0.7.0';
+import { rng } from './math.js?v=0.8.0';
 export const TS = 256;
 export const L = {};
 const layers = []; // {name, draw(ctx, img)}

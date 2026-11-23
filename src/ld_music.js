@@ -106,7 +106,8 @@ const SCALE = { spring: [0, 2, 4, 7, 9], summer: [0, 2, 4, 5, 7, 9, 11], autumn:
 // 2小節のモチーフ（リズム＋音の上下の動き）を A A' B A C C' B A'' と並べ、各小節の実際の和音に合わせて音高を決める
 // （強拍は和音の音、弱拍は季節の音階の音。モチーフを繰り返しても和音とぶつからない）
 function makeMelody(song) {
-  const R = seeded(song.seed * 31 + 5), M = song.meter || 4, spBar = M * 4, pool = RHY[M][song.rh] || (M === 3 ? RHY[3].waltz : RHY[4].pop);
+  const sd = Number.isFinite(song.seed) ? song.seed : [...String(song.id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 100003, 7); // 修正103：休憩・到着の曲は seed を持たない（null）ので id から作る（以前は NaN で旋律の生成が例外になり無音だった）
+  const R = seeded(sd * 31 + 5), M = song.meter || 4, spBar = M * 4, pool = RHY[M][song.rh] || (M === 3 ? RHY[3].waltz : RHY[4].pop);
   const scale = SCALE[song.season] || SCALE.spring, key = song.key, len = song.prog.length;
   const motif = () => { const bars = []; for (let b = 0; b < 2; b++) { const r = pool[Math.floor(R() * pool.length)], steps = []; for (let st = 0; st < spBar; st++) steps.push(r[st] === '1' ? Math.round((R() - 0.45) * 4) : null); bars.push(steps); } return bars; };
   const A = motif(), B = motif(), C = motif(), A2 = [A[0], motif()[1]], A3 = [A[0], A[1].map(x => x == null ? x : x + (R() < 0.3 ? 1 : 0))], C2 = [C[0], motif()[1]];
@@ -137,9 +138,10 @@ export class LDMusic {
     if (this.scene !== 'none') this.start(this.pickFor(this.scene), 0.05);
     return true;
   }
-  setSeason(se) { if (!LD_SONGS[se]) se = 'spring'; if (se === this.season && this.bag) return; this.season = se; this.bag = new ShuffleBag(LD_SONGS[se].length); }
+  setSeason(se) { if (!LD_SONGS[se]) se = 'spring'; if (se === this.season && this.bag) return; this.season = se; this.bag = new ShuffleBag(LD_SONGS[se].length);
+    if (this.cur && this.scene !== 'none') { this.scene = 'none'; this.fadeTo(null, 0.3); } } // 別の季節で始め直したとき、前の季節の曲を引きずらない（次の setScene で新しい季節の曲から）
   setVol(v) { this.vol = v; if (this.ctx && this.cur && this.on) this.out.gain.setTargetAtTime(this.level(), this.ctx.currentTime, 0.3); }
-  level() { return this.vol * 0.5; }
+  level() { return this.vol * 1.4; } // 修正122：既定の出力を引き上げ（旧 vol×0.5×BGM音量0.5＝0.25 → 長距離BGM音量の既定0.8×1.4＝1.12、約+13dB）。100km/h巡航の走行音とほぼ同じ大きさ（自己テストで計測）
   setOn(on) { on = !!on; if (on === this.on) return; this.on = on;
     if (!on) { this.fadeTo(null, 0.4); return; }
     if (this.scene !== 'none') this.start(this.pickFor(this.scene), 0.6); }

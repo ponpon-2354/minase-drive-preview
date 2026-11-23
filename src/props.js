@@ -1,7 +1,7 @@
 // v0.3 道路わき・街の小物（標識・カーブミラー・バス停・自販機・ポスト・自転車・看板類）と、道路の細部
-import { L } from './textures.js?v=0.7.0';
-import { rng } from './math.js?v=0.7.0';
-import { MODELS as MODELS_REF } from './carmodels.js?v=0.7.0';
+import { L } from './textures.js?v=0.8.0';
+import { rng } from './math.js?v=0.8.0';
+import { MODELS as MODELS_REF } from './carmodels.js?v=0.8.0';
 
 const BACK = { SP30: 'BACK_RND', SP40: 'BACK_RND', SP50: 'BACK_RND', SP60: 'BACK_RND', NOENTRY: 'BACK_RND', BUSSTOP: 'BACK_RND', STOP: 'BACK_TRI', CURVE: 'BACK_DIA' };
 const WHITE = [0.95, 0.95, 0.93];

@@ -59,7 +59,9 @@ export async function clearLD() {
 // クリア記録（最新20件）
 export function addClear(rec) { try { const a = JSON.parse(localStorage.getItem(CLEAR_LS) || '[]'); a.unshift(rec); localStorage.setItem(CLEAR_LS, JSON.stringify(a.slice(0, 20))); } catch (e) { /* none */ } }
 export function getClears() { try { return JSON.parse(localStorage.getItem(CLEAR_LS) || '[]'); } catch (e) { return []; } }
-// v0.8.0 長距離ドライブの設定（修正102 BGM の ON/OFF、修正109 セリフ、修正112 ラジオ案内）。市街地のセーブとは別のキー。無い項目は既定値（すべてON）で補う
-const LDP_LS = 'minase-drive-ld-prefs', LDP0 = { bgm: true, talk: true, radio: true };
-export function loadLDPrefs() { let v = null; try { v = JSON.parse(localStorage.getItem(LDP_LS) || 'null'); } catch (e) { /* none */ } const o = { ...LDP0 }; if (v && typeof v === 'object') for (const k in LDP0) if (typeof v[k] === 'boolean') o[k] = v[k]; return o; }
-export function saveLDPrefs(p) { try { localStorage.setItem(LDP_LS, JSON.stringify({ bgm: !!p.bgm, talk: !!p.talk, radio: !!p.radio })); return true; } catch (e) { return false; } }
+// v0.8.0 長距離ドライブの設定（修正102 BGM の ON/OFF、修正109 セリフ、修正112 ナビの観光案内・ラジオのトーク、修正122 長距離BGMの音量）と
+// 修正119 タッチのハンドル操作方式（'wheel' ハンドル／'buttons' ◀▶ ボタン。市街地・長距離の両方に効く）。市街地のセーブとは別のキー。無い項目・型の違う項目は既定値で補う
+const LDP_LS = 'minase-drive-ld-prefs', LDP0 = { bgm: true, talk: true, nav: true, radio: true, vol: 0.8, steer: 'wheel' };
+export function loadLDPrefs() { let v = null; try { v = JSON.parse(localStorage.getItem(LDP_LS) || 'null'); } catch (e) { /* none */ } const o = { ...LDP0 }; if (v && typeof v === 'object') for (const k in LDP0) if (typeof v[k] === typeof LDP0[k]) o[k] = v[k];
+  o.vol = Math.max(0, Math.min(1, +o.vol || 0)); if (o.steer !== 'buttons') o.steer = 'wheel'; return o; }
+export function saveLDPrefs(p) { try { const o = {}; for (const k in LDP0) o[k] = typeof LDP0[k] === 'boolean' ? !!p[k] : p[k]; localStorage.setItem(LDP_LS, JSON.stringify(o)); return true; } catch (e) { return false; } }

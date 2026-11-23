@@ -1,6 +1,6 @@
 // 人物（運転者・歩行者）と二輪車のローポリモデル、歩行者の簡易AI
 // 運転者は 年代3 × 性別2 × 服装3 = 18 通りをパラメータから生成（実在人物・キャラクターではない汎用の人形）
-import { rng } from './math.js?v=0.7.0';
+import { rng } from './math.js?v=0.8.0';
 
 export const AGES = ['青年', '壮年', '老人'], SEXES = ['男性', '女性'], OUTFITS = ['普段着', 'カジュアル', 'スーツ'];
 const SKIN = [[0.93, 0.78, 0.66], [0.88, 0.72, 0.6], [0.85, 0.7, 0.6]];
@@ -59,7 +59,7 @@ export function buildDriver(gb, sel, eye, steer, steerR = 0.18, floorY = 0.26) {
   const tmp = { age: sel.age, sex: sel.sex, outfit: sel.outfit, pose: 'sit', seed: 3 };
   // まず仮に作って目の高さを測り、目が eye に来るよう平行移動
   const probe = buildPerson({ box() { }, beam() { }, cbox() { } }, tmp);
-  const ox = eye[0], oy = eye[1] - probe.eyeY, oz = eye[2] - probe.eyeZ;
+  const ox = eye[0], oy = Math.max(eye[1] - probe.eyeY, eye[1] - 0.69), oz = eye[2] - probe.eyeZ; // 修正113：背の低い人でも腰が座面（y≈0.5）より沈まないように。腰は座面の上・背もたれの前
   const hands = [[steer[0] - ox - steerR * 0.9, steer[1] - oy + 0.04, steer[2] - oz - 0.03], [steer[0] - ox + steerR * 0.9, steer[1] - oy + 0.04, steer[2] - oz - 0.03]];
   gb.setXf(ox, oy, oz, 0); buildPerson(gb, { ...tmp, hands, noHands: true, footY: floorY + 0.01 - oy }); gb.clearXf();
 }

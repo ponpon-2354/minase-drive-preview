@@ -1,12 +1,12 @@
 // 架空都市「水瀬市」：道路ネットワーク・信号・街区・建物・駐車場・チャンク管理
 // v0.2：約4km四方（x,z = -2000〜2000）。中心市街地（1km四方）＋郊外・工業団地・ロードサイド・河川・田園・山間部
-import { GB, hex } from './geo.js?v=0.7.0';
-import { L, plateUV, PLATES } from './textures.js?v=0.7.0';
-import { rng, clamp } from './math.js?v=0.7.0';
-import { buildHull, pickModel, pickColor, MODELS, plateClass, pickPassenger, pickCommercial, isCommercial, pickFit } from './carmodels.js?v=0.7.0';
-import { CURVES, curvePts, inNewDistrict } from './districts.js?v=0.7.0';
-import { buildWorld } from './world.js?v=0.7.0';
-import { installProps } from './props.js?v=0.7.0';
+import { GB, hex } from './geo.js?v=0.8.0';
+import { L, plateUV, PLATES } from './textures.js?v=0.8.0';
+import { rng, clamp } from './math.js?v=0.8.0';
+import { buildHull, pickModel, pickColor, MODELS, plateClass, pickPassenger, pickCommercial, isCommercial, pickFit } from './carmodels.js?v=0.8.0';
+import { CURVES, curvePts, inNewDistrict } from './districts.js?v=0.8.0';
+import { buildWorld } from './world.js?v=0.8.0';
+import { installProps } from './props.js?v=0.8.0';
 
 export const LINES = [-500, -375, -250, -125, 0, 125, 250, 375, 500];
 export const XL = [-2000, -1500, -1000, -500, 0, 500, 1000, 1500, 2000];

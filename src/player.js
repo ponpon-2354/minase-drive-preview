@@ -1,7 +1,7 @@
 // プレイヤー車両（ミライース）の物理：自転車モデル＋タイヤ横力（摩擦円）＋CVT
 // v0.3：後退旋回の修正、クリープ／坂道、壁でのスライド、路面種別、スタック自動復帰
-import { clamp } from './math.js?v=0.7.0';
-import { MIRA } from './carmodels.js?v=0.7.0';
+import { clamp } from './math.js?v=0.8.0';
+import { MIRA } from './carmodels.js?v=0.8.0';
 
 // 路面種別：0=草地・畑 1=舗装 2=歩道 3=砂利・敷地
 // 路面：草地・砂利は少し滑りやすく、アクセルは約50km/hで効かなくなる（ブレーキはかけない）。住宅街は zoneCap（約70km/h）。制限速度リミッターは前進のみ

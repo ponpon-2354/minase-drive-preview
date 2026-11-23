@@ -1,8 +1,8 @@
 // 車両モデル：ミライース（プレイヤー）＋NPC 50車種のパラメトリック・ローポリモデル
 // ※実車の正確な再現ではなく、寸法・シルエットを参考にした簡易モデル（仮モデル）。ロゴ・エンブレムは含まない。
-import { GB, hex } from './geo.js?v=0.7.0';
-import { clamp } from './math.js?v=0.7.0';
-import { L } from './textures.js?v=0.7.0';
+import { GB, hex } from './geo.js?v=0.8.0';
+import { clamp } from './math.js?v=0.8.0';
+import { L } from './textures.js?v=0.8.0';
 
 const C = { // 汎用カラー（実車の市販色を参考にした近似色）
   W: ['ホワイト', '#eeeeec'], PW: ['パールホワイト', '#e9e6dc'], S: ['シルバー', '#b4b8bc'], BK: ['ブラック', '#151517'],
@@ -700,7 +700,7 @@ export function buildPlayerCar() {
   // 内装：ダッシュボード
   interior.box(-Wh + 0.06, belt - 0.32, zW - 0.62, Wh - 0.06, belt - 0.02, zW - 0.05, trim);
   // 修正93-5：ダッシュボード上面はフロントガラスへ向かって下がる斜面（平板な箱にしない）。中央にディスプレイと空調吹き出し口
-  { const dk = { c: [0.2, 0.2, 0.21] }, yR = belt + 0.07, yF = belt - 0.02, zR = zW - 0.62, zF = zW - 0.08;
+  { const dk = { c: [0.2, 0.2, 0.21] }, yR = belt + 0.04, yF = belt - 0.03, /* 修正114：ダッシュボード上面を 3cm 下げる */ zR = zW - 0.62, zF = zW - 0.08;
     interior.quadN([-Wh + 0.06, yR, zR], [Wh - 0.06, yR, zR], [Wh - 0.06, yF, zF], [-Wh + 0.06, yF, zF], [0, 1, 0.2], dk);
     interior.quadN([-Wh + 0.06, belt - 0.32, zR], [Wh - 0.06, belt - 0.32, zR], [Wh - 0.06, yR, zR], [-Wh + 0.06, yR, zR], [0, 0, -1], { c: [0.17, 0.17, 0.18] });
     interior.quadN([-0.13, belt - 0.12, zR - 0.006], [0.13, belt - 0.12, zR - 0.006], [0.13, belt + 0.03, zR - 0.006], [-0.13, belt + 0.03, zR - 0.006], [0, 0, -1], { c: [0.06, 0.09, 0.12], mat: 5 }); // ディスプレイ
@@ -709,23 +709,33 @@ export function buildPlayerCar() {
   // メーターフード（右ハンドル：運転席は -x 側）。メーターはハンドルの上から見える高さに置く
   const dx = -0.36;
   // 修正97-4：メーターとフードを低く小さくし、ハンドルを下げて、運転席の目線（y=1.16）からハンドル上部の内側にメーター全体が見えるようにする
-  interior.box(dx - 0.14, belt + 0.115, zW - 0.68, dx + 0.14, belt + 0.14, zW - 0.55, { c: [0.1, 0.1, 0.11] });
-  for (const sx of [dx - 0.14, dx + 0.115]) interior.box(sx, belt - 0.05, zW - 0.68, sx + 0.025, belt + 0.115, zW - 0.56, { c: [0.1, 0.1, 0.11] });
-  interior.quadN([dx - 0.08, belt - 0.04, zW - 0.651], [dx + 0.08, belt - 0.04, zW - 0.651], [dx + 0.08, belt + 0.115, zW - 0.651], [dx - 0.08, belt + 0.115, zW - 0.651], [0, 0, -1], { c: [0.9, 0.9, 0.9], lay: L.METER, mat: 0 }, [[1, 1], [0, 1], [0, 0], [1, 0]]);
+  // 修正114：運転者視点の前方視界を確保。メーターフードの上端を belt+0.14 → belt+0.05 に下げて薄くし、メーター（13cm角）はハンドルのリムの上から読める高さに置く
+  //  運転席の目（eye）は座った人の実際の目の位置（座面の上、背もたれの前）へ。ダッシュボード・フードは画面下部の約25%に収まる（自己テストで計測）
+  interior.box(dx - 0.12, belt + 0.03, zW - 0.68, dx + 0.12, belt + 0.05, zW - 0.56, { c: [0.1, 0.1, 0.11] });
+  for (const sx of [dx - 0.12, dx + 0.1]) interior.box(sx, belt - 0.1, zW - 0.68, sx + 0.02, belt + 0.03, zW - 0.57, { c: [0.1, 0.1, 0.11] });
+  interior.quadN([dx - 0.065, belt - 0.09, zW - 0.651], [dx + 0.065, belt - 0.09, zW - 0.651], [dx + 0.065, belt + 0.04, zW - 0.651], [dx - 0.065, belt + 0.04, zW - 0.651], [0, 0, -1], { c: [0.9, 0.9, 0.9], lay: L.METER, mat: 0 }, [[1, 1], [0, 1], [0, 0], [1, 0]]);
   // センターパネル
   interior.quadN([-0.14, belt - 0.32, zW - 0.63], [0.14, belt - 0.32, zW - 0.63], [0.14, belt - 0.06, zW - 0.63], [-0.14, belt - 0.06, zW - 0.63], [0, 0, -1], { c: [1, 1, 1], lay: L.PANEL }, [[1, 1], [0, 1], [0, 0], [1, 0]]);
   interior.box(-0.14, 0.25, zW - 1.2, 0.14, belt - 0.32, zW - 0.6, trim); // センターコンソール
-  // シート
+  // シート（修正113：実車 LA350S の寸法感。前席は幅0.46・奥行き0.46に小ぶりにして前へ寄せ、背もたれは薄く少し寝かせてヘッドレスト付き。
+  //  後席はベンチシート（座面・やや寝た背もたれ・左右のヘッドレスト）で、前席の背もたれとの間に足元空間（大人の膝の前に約0.16m）を確保）
+  const seat = { c: [1, 1, 1], side: { lay: L.SEAT, tw: 0.5, th: 0.5 }, top: { lay: L.SEAT, tw: 0.5 } }, seatD = { c: [0.78, 0.78, 0.8], side: { lay: L.SEAT, tw: 0.5, th: 0.5 }, top: { lay: L.SEAT, tw: 0.5 } };
   for (const sx of [-0.36, 0.36]) {
-    interior.box(sx - 0.24, 0.3, -1.02, sx + 0.24, 0.5, -0.5, { c: [1, 1, 1], side: { lay: L.SEAT, tw: 0.5, th: 0.5 }, top: { lay: L.SEAT, tw: 0.5 } });
-    interior.box(sx - 0.24, 0.45, -1.14, sx + 0.24, 1.15, -0.99, { c: [1, 1, 1], side: { lay: L.SEAT, tw: 0.5, th: 0.5 }, top: { lay: L.SEAT, tw: 0.5 } });
+    interior.box(sx - 0.23, 0.3, -0.68, sx + 0.23, 0.47, -0.22, seat); // 座面（前席）
+    interior.box(sx - 0.23, 0.44, -0.76, sx + 0.23, 0.82, -0.7, seat); // 背もたれ（下）
+    interior.box(sx - 0.22, 0.82, -0.81, sx + 0.22, 1.12, -0.75, seat); // 背もたれ（上・少し後ろへ寝かせる）
+    interior.box(sx - 0.13, 1.16, -0.83, sx + 0.13, 1.31, -0.77, seatD); // ヘッドレスト
+    for (const hx of [-0.08, 0.08]) interior.box(sx + hx - 0.008, 1.12, -0.8, sx + hx + 0.008, 1.16, -0.78, { c: [0.6, 0.6, 0.62] });
+    interior.box(sx - 0.18, 0.26, -0.66, sx + 0.18, 0.3, -0.26, { c: [0.1, 0.1, 0.1] }); // シートレール・脚
   }
-  interior.box(-Wh + 0.08, 0.3, -1.52, Wh - 0.08, 0.5, -1.18, { c: [1, 1, 1], side: { lay: L.SEAT, tw: 0.5, th: 0.5 }, top: { lay: L.SEAT, tw: 0.5 } });
-  interior.box(-Wh + 0.08, 0.45, -1.62, Wh - 0.08, 1.05, -1.5, { c: [1, 1, 1], side: { lay: L.SEAT, tw: 0.5, th: 0.5 } });
-  // 床・内張り・天井
+  interior.box(-Wh + 0.1, 0.28, -1.52, Wh - 0.1, 0.45, -1.1, seat); // 後席の座面（ベンチ）
+  interior.box(-Wh + 0.1, 0.42, -1.64, Wh - 0.1, 0.8, -1.54, seat); // 後席の背もたれ（下）
+  interior.box(-Wh + 0.1, 0.8, -1.68, Wh - 0.1, 1.04, -1.58, seat); // 後席の背もたれ（上）
+  for (const sx of [-0.34, 0.34]) interior.box(sx - 0.12, 1.06, -1.69, sx + 0.12, 1.18, -1.62, seatD); // 後席のヘッドレスト
+  // 床（後席の足元は一段低く）・内張り・天井（後席の頭上まで）
   interior.box(-Wh + 0.03, 0.22, -1.5, Wh - 0.03, 0.26, zW - 0.1, { c: [0.12, 0.12, 0.12] });
-  for (const s of [1, -1]) interior.box(s * (Wh - 0.04) - 0.025, 0.3, -1.5, s * (Wh - 0.04) + 0.025, belt + 0.03, zW - 0.2, beige);
-  interior.box(-Wh + 0.12, p.H - 0.09, -1.35, Wh - 0.12, p.H - 0.06, p.L / 2 - p.wsT - 0.05, { c: [0.75, 0.73, 0.68] });
+  for (const s of [1, -1]) interior.box(s * (Wh - 0.04) - 0.025, 0.3, -1.66, s * (Wh - 0.04) + 0.025, belt + 0.03, zW - 0.2, beige);
+  interior.box(-Wh + 0.12, p.H - 0.09, -1.62, Wh - 0.12, p.H - 0.06, p.L / 2 - p.wsT - 0.05, { c: [0.75, 0.73, 0.68] });
   // ルームミラー
   const zFt = p.L / 2 - p.wsT;
   interior.box(-0.11, p.H - 0.22, zFt - 0.12, 0.11, p.H - 0.15, zFt - 0.08, { c: [0.1, 0.1, 0.1] });
@@ -743,8 +753,8 @@ export function buildPlayerCar() {
   steer.beam([0, 0, 0], [0, -sr, 0], 0.014, { c: [0.1, 0.1, 0.1] });
   steer.beam([0, 0, 0.02], [0, 0, 0.35], 0.03, { c: [0.1, 0.1, 0.1] });
   needle.box(-0.003, 0, -0.002, 0.003, 0.055, 0.002, { c: [1, 0.3, 0.1], mat: 5 });
-  const meterGlow = new GB(); meterGlow.quadN([dx - 0.085, belt - 0.045, zW - 0.653], [dx + 0.085, belt - 0.045, zW - 0.653], [dx + 0.085, belt + 0.12, zW - 0.653], [dx - 0.085, belt + 0.12, zW - 0.653], [0, 0, -1], { c: [0.2, 1, 0.45], mat: 8 }); // エコ運転中のグリーン照明
-  return { p, body, glass, interior, wheel: wheelG, wheelR, steer, needle, driverX: dx, eye: [dx, 1.16, -0.42], wheelPos: [[-0.6665, p._zf, 1], [0.6665, p._zf, 1], [-0.6665, p._zr, 0], [0.6665, p._zr, 0]], steerPos: [dx, belt - 0.19, zW - 0.76], meterGlow, meterPos: [dx, belt + 0.03, zW - 0.656] };
+  const meterGlow = new GB(); meterGlow.quadN([dx - 0.07, belt - 0.095, zW - 0.653], [dx + 0.07, belt - 0.095, zW - 0.653], [dx + 0.07, belt + 0.045, zW - 0.653], [dx - 0.07, belt + 0.045, zW - 0.653], [0, 0, -1], { c: [0.2, 1, 0.45], mat: 8 }); // エコ運転中のグリーン照明
+  return { p, body, glass, interior, wheel: wheelG, wheelR, steer, needle, driverX: dx, eye: [dx, 1.2, -0.51], /* 修正113・114：旧 [dx, 1.16, -0.42]（座面より前に浮いていた） */ wheelPos: [[-0.6665, p._zf, 1], [0.6665, p._zf, 1], [-0.6665, p._zr, 0], [0.6665, p._zr, 0]], steerPos: [dx, 0.85, -0.15], meterGlow, meterPos: [dx, belt - 0.025, zW - 0.656] }; // 修正114：旧 steerPos [dx, belt-0.19, zW-0.76]、meterPos [dx, belt+0.03, zW-0.656]
 }
 
 // v0.5.1 セミトレーラー：トラクタ（けん引車）は buildHull に車長 tL で作り、トレーラー（バン型・後3軸）は別メッシュ。描画時に連結角を付けて並べる

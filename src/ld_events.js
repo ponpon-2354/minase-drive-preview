@@ -1,75 +1,42 @@
 // v0.8.0 長距離ドライブの演出と評価
-//   修正109：同乗者の会話・リアクション（景色・イベントへの反応、年齢・性別でセリフが変わる、小さなお願いイベント）
+//   修正109：同乗者の会話・リアクション（景色・イベントへの反応、小さなお願いイベント）
 //   修正110：エコ運転スコア（走行中は表示しない。クリア画面に点数・内訳・同乗者の一言）
 //   修正111：天気の変化（にわか雨→雨上がりの虹、夏の入道雲、冬の晴れ間）と、到着時刻による昼／夕方／夜の判定
-//   修正112：ラジオ風の観光・道路案内（見どころ・施設の手前。曲の切り替わり直後か一定間隔で表示）
-// 状態は LongDrive.st.ev に plain なJSONで持つ（セーブ・再開をまたいで続く。古いセーブには無いので既定値で補う）。
-// 天気の変化はセーブしない（再開時は季節の標準天候から。すでに通り過ぎた区間の変化は起こさない）。
+//   修正112（2026-11-24 改訂）：見どころの案内は「ナビの観光案内」（kind 'nav'）。ラジオ（kind 'radio'）は位置に依存しないトークだけを曲間に。
+//                              距離・到着予想・次の施設までの距離は HUD とナビの進路案内の担当で、ここでは出さない
+//   修正115：会話の文脈（直近に食べた物・お願いした物・話題）を st.ev.ctx に持ち、矛盾する提案・同じ話題の繰り返しを避ける。同じセリフはそのドライブ中は再選出しない
+//   修正117：ナビの観光案内と景色のリアクションは、ルートに実際に置かれた地物（world.feats）からだけ作る
+//   修正118：セリフは性別×年齢帯の8区分（ld_lines.js）
+// 状態は LongDrive.st.ev に plain なJSONで持つ（セーブ・再開をまたいで続く。古いセーブには無いので既定値で補う）。天気の変化はセーブしない。
 // このモジュールは DOM・WebGL に触れない（字幕の表示は main.js が poll() の結果を出す）。
-import { ROUTE_LEN, DIST_SCALE } from './ld_world.js?v=0.7.0';
+import { ROUTE_LEN, DIST_SCALE } from './ld_world.js?v=0.8.0';
+import { LINES, ECO_COMMENT, NAV, KIND_TRIG, RADIO, FOOD, CAT, mealFor, voiceKey, band } from './ld_lines.js?v=0.8.0';
+export { voiceKey, band, mealFor };
 
 const KM = DIST_SCALE / 1000; // 実距離1m → 表示km
 const kmToS = km => km / KM;   // 表示km → 実距離m
-const TALK_GAP = 100, TALK_GAP_HI = 40, RADIO_GAP = 45, SUB_GAP = 4; // 秒（現実時間）
+const TALK_GAP = 90, TALK_GAP_HI = 35, SUB_GAP = 4, NAV_GAP = 6; // 秒（現実時間）
+const NAV_LEAD = [780, 470]; // ナビの観光案内を出す範囲：地物の 表示25km〜15km 手前（実 780〜470m）
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 function seeded(s) { s = (s % 2147483646) + 1; return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+// 旧API互換（v0.8.0 開発途中の ageGroup）：性別×年齢帯のキーを返す
+export const ageGroup = voiceKey;
 
-// ---- 年齢層：子ども（約9歳）／10代／大人（20〜50代）／60代以上。大人は性別で語尾を変える ----
-export function ageGroup(ch) { if (!ch) return 'adultF'; if (ch.age === 'child') return 'child'; if (ch.age === '10') return 'teen'; if (ch.age === '60') return 'senior'; return ch.sex ? 'adultF' : 'adultM'; }
-const G = (child, teen, adultF, adultM, senior) => ({ child, teen, adultF, adultM: adultM || adultF, senior });
-
-// ---- 同乗者のセリフ（{fac} 施設名、{dest} 目的地、{item} お願いの品） ----
-const LINES = {
-  sakura: G(['わー！ピンクの木がいっぱい！', 'さくら、さくら！花びらが飛んでる！'], ['桜めっちゃ咲いてる、写真撮りたい', 'うわ、桜並木すご'], ['桜並木、満開だね。きれい…', 'ちょうど見ごろに来られてよかったね'], ['見事な桜並木だな', 'いい時期に来たなあ、満開だ'], ['ほう、見事に咲いとるねえ', '桜を見ると春が来たと思うねえ']),
-  sakuraT: G(['トンネルみたい！桜のトンネルだ！', 'うえもよこもぜんぶ桜！'], ['桜のトンネルじゃん、エモい', 'ここ動画撮っとこ'], ['桜のトンネル…ため息が出ちゃう', 'ゆっくり走ってくれてありがとう、よく見える'], ['桜のトンネルか、これは見事だ', 'この区間は景色を楽しもう'], ['長生きはするもんだねえ、こんな桜は初めてだよ']),
-  bridge: G(['すごい！おっきい橋！', '下に川が見える！たかーい！'], ['橋長っ', '景色ひらけた、いい感じ'], ['わあ、見晴らしがいいね', '風が強いかも、気をつけてね'], ['大きな橋だな、眺めがいい', '橋の上は横風に注意だな'], ['立派な橋だねえ', 'いい眺めだ、川がきらきらしとる']),
-  tunnel: G(['トンネルだ！まっくらになるよ！', 'トンネルの中で声出すとひびくかな？'], ['トンネル入ると耳ちょっと変になる', 'トンネル長そう'], ['トンネルだね。ライト大丈夫？', '出口が明るくてまぶしいかもね'], ['トンネルか。車間距離をとっていこう', '長いトンネルだな'], ['トンネルはいつもどきどきするねえ']),
-  castle: G(['あっ！お城だ！ほんもののお城！', 'お城みえた！てっぺん金色？'], ['城見えてきた！テンション上がる', 'ガチの城じゃん'], ['見て、お城が見えてきたよ', 'もうすぐ桜ヶ丘城だね、楽しみ'], ['お、城が見えてきたぞ', 'あれが桜ヶ丘城か、立派だな'], ['お城が見えてきたねえ。懐かしいよ']),
-  sea: G(['うみだー！！', '海キラキラしてる！およぎたい！'], ['海きた！夏って感じ', '海めっちゃ青い'], ['海が見えた！やっぱり夏は海だね', '窓を少し開けたら潮の香りがしそう'], ['海だ。いい天気でよかった', '海沿いは気持ちいいな'], ['海を見ると若いころを思い出すよ']),
-  harbor: G(['船がいっぱい！あれ漁師さんの船？', 'かもめいる！'], ['港町っぽい、海鮮食べたい', 'あの船かっこいい'], ['港町だね。お魚おいしそう', 'のんびりした港だね'], ['漁港か、朝はにぎやかなんだろうな'], ['港の匂いがするねえ']),
-  plateau: G(['すずしい！山の上だ！', '空ちかい！'], ['高原きた、空気うまそう', '景色ひろっ'], ['高原は涼しいね。空が近い', '登り坂、おつかれさま'], ['高原だ。だいぶ登ってきたな'], ['高原の風は気持ちがいいねえ']),
-  maple: G(['葉っぱがまっかっか！', '黄色いのと赤いのがある！'], ['紅葉ガチ勢になりそう', '赤すぎて逆にすごい'], ['紅葉がきれい…絵みたい', '山が赤や黄色に染まってるね'], ['見事な紅葉だな', '今年は色づきがいいな'], ['紅葉はいいねえ、心が落ち着くよ']),
-  gorge: G(['下に川がある！滝ある？', 'がけ、こわいけどすごい！'], ['渓谷やば、絶景', 'あとで滝見に行きたい'], ['渓谷だね。水がすごく澄んでる', 'カーブが多いから、ゆっくりでいいよ'], ['深い渓谷だな', 'このあたりはカーブが続くな'], ['渓流の音が聞こえるようだねえ']),
-  village: G(['かきの木だ！オレンジのいっぱい！', 'わらがほしてある！'], ['田舎の景色いいな', '柿めっちゃなってる'], ['山あいの集落、のどかだね', '稲架けが並んでる。秋だね'], ['いい集落だな、のんびりしてる'], ['昔はうちもこうして稲を干したもんだよ']),
-  snow: G(['ゆきだ！まっしろ！', 'ゆきだるまつくりたい！'], ['雪やば、一面まっしろ', '雪景色ってテンション上がる'], ['一面の雪景色…きれい', '路面、気をつけてね'], ['見渡すかぎり雪だな', '除雪してくれてるから走りやすいな'], ['雪の白さが目にしみるねえ']),
-  lake: G(['みずうみこおってる！', 'あの上あるけるのかな？'], ['湖凍ってる、すげえ', 'スケートできそう'], ['湖が凍ってる…静かだね', '氷の湖って幻想的'], ['湖が凍ってるな、冷えるわけだ'], ['凍った湖は久しぶりに見たよ']),
-  snowwall: G(['雪のかべ！おっきい！', 'かべのなかを走ってるみたい！'], ['雪の壁えぐい高さ', '雪の回廊じゃん'], ['雪の壁がこんなに高い…', '除雪してくれる人に感謝だね'], ['雪の壁か、すごい積雪だな'], ['これだけ雪が積もるとは、たいしたもんだ']),
-  onsen: G(['ゆげがでてる！おんせんだ！', 'たまごのにおいする？'], ['湯けむり見えた、温泉街だ', '温泉はよ'], ['湯けむりが見えてきたね', 'もうすぐ温泉だね、楽しみ'], ['湯けむりだ。温泉街に着いたな'], ['ああ、温泉が待っとるねえ']),
-  rainbow: G(['にじ！にじが出てる！', 'みて！にじ！なないろ！'], ['虹出てる！レア！', '虹きれい、写真撮っとこ'], ['見て、虹！雨上がりだね', '虹が出てる…いいことありそう'], ['お、虹だ。運がいいな'], ['虹とは縁起がいいねえ']),
-  rain: G(['あめふってきた！', 'ワイパーうごいてる！'], ['雨きた、通り雨かな', '雨か〜'], ['雨が降ってきたね。ゆっくりでいいよ', '通り雨かな、すぐ止むといいね'], ['にわか雨だな。スピード控えめでいこう'], ['雨だねえ。気をつけてな']),
-  cumulus: G(['くもがもくもく！アイスクリームみたい！'], ['入道雲でっか、夏だわ'], ['入道雲がすごいね、夏らしい'], ['大きな入道雲だな'], ['入道雲が立っとるねえ、夕立が来るかもしれん']),
-  sunbeam: G(['おひさまでてきた！雪がキラキラ！'], ['晴れてきた、雪まぶしい'], ['晴れ間が出てきたね。雪がきらきら', 'まぶしいからサングラスあるといいね'], ['晴れてきたな、雪がまぶしい'], ['お日様が出るとありがたいねえ']),
-  facNear: G(['もうすぐ{fac}？トイレいきたいかも', '{fac}ってなにがあるの？'], ['{fac}寄る？', 'そろそろ{fac}だって'], ['もうすぐ{fac}だね。休憩していく？', '{fac}で少し休もうか'], ['{fac}が近いな。寄っていくか？'], ['{fac}でひと休みしようかねえ']),
-  destNear: G(['もうすぐ{dest}？やったー！', 'ついたらなにする？'], ['あと少しじゃん', '{dest}もうすぐ'], ['もうすぐ{dest}だね。運転ありがとう', 'あと少し、ラストスパートだね'], ['もうすぐ{dest}だ。長旅おつかれさま'], ['もうすぐだねえ。ありがとうね、運転']),
-  fatigue: G(['ねえ、つかれてない？だいじょうぶ？'], ['ちょっと休憩したら？'], ['疲れてない？次で休憩しようよ', '無理しないでね。休憩も旅のうちだよ'], ['少し休んだほうがいいんじゃないか'], ['無理はいかんよ、少し休みなさい']),
-  // お願いイベント
-  ask: G(['ねえねえ、{fac}で{item}たべたい！', 'つぎの{fac}で{item}かってもいい？'], ['{fac}で{item}食べたいんだけど', '次の{fac}で{item}ある？寄りたい'], ['次の{fac}で{item}食べたいな。寄ってくれる？'], ['次の{fac}で{item}でもどうだ？'], ['{fac}で{item}をいただきたいねえ']),
-  askDone: G(['{item}おいしかった！ありがとう！', 'やったー！{item}たべられた！'], ['{item}うまかった、ありがと', '{item}最高だった'], ['{item}おいしかったね、寄ってくれてありがとう'], ['{item}、うまかったな。ありがとう'], ['{item}、おいしかったよ。ありがとうね']),
-  askMiss: G(['あ…{fac}すぎちゃった。まあいっか！'], ['{fac}通りすぎたけど、まあいいや'], ['{fac}、また今度にしようね'], ['{fac}は次の機会だな'], ['また今度でいいよ'])
-};
-const ITEMS = { spring: { child: 'さくらソフト', other: 'いちご大福' }, summer: { child: 'かき氷', other: 'ソフトクリーム' }, autumn: { child: '焼きいも', other: '栗おこわ' }, winter: { child: 'ココア', other: '肉まん' } };
-// 同乗者のコメント（クリア画面：エコ運転スコアに応じて）
-const ECO_COMMENT = {
-  hi: G(['すっごくのりごこちよかった！ねむっちゃいそうだった', 'うんてんじょうず！'], ['運転うまくない？快適だった', '全然酔わなかった、さすが'], ['運転、とっても丁寧だったね。快適だったよ', 'ずっと安心して乗っていられたよ'], ['丁寧な運転だったな。疲れなかったよ'], ['上手な運転だったねえ。ゆったりできたよ']),
-  mid: G(['たのしかった！またいこうね', 'ちょっとゆれたけど、だいじょうぶだったよ'], ['まあまあ快適だった', '楽しかった、また行こ'], ['楽しいドライブだったね。おつかれさま'], ['いいドライブだった。おつかれ'], ['楽しかったよ、おつかれさま']),
-  lo: G(['ちょっとこわかった…', 'ブレーキでからだがまえにいった…'], ['ちょっと運転荒くなかった？', '急ブレーキびびった'], ['もう少しゆっくりでもいいかも。安全第一でね', 'ちょっとドキッとしたよ。次はのんびり行こう'], ['もう少し穏やかに走ってもいいかもな'], ['もう少しゆっくりでええんじゃよ'])
-};
-
-// ---- 季節ごとの見どころ（同乗者の反応とラジオ案内のきっかけ）。s は実距離（見どころの始まり） ----
-function spotsFor(world) {
-  const D = world.D, se = world.season, out = [], fz = (t) => D.zones.find(z => z[2] === t || z[3] === t);
-  const add = (id, s, trig, radio, pri = 0) => { if (s > 60 && s < ROUTE_LEN + 20) out.push({ id, s, trig, radio, pri }); };
-  for (const [a, b, nm] of D.bridges) add('brg:' + nm, a, 'bridge', `まもなく${nm}です。橋の上は横風にご注意ください`);
-  for (const [a, b, nm] of D.tunnels) add('tun:' + nm, a, 'tunnel', `この先、${nm}。全長およそ${Math.round((b - a) * KM)}km、トンネル内はライトの点灯をお願いします`);
-  const z = t => { const q = fz(t); return q ? q[0] + 60 : null; };
-  if (se === 'spring') { add('sakura', z('sakura'), 'sakura', 'この先は桜並木の道。沿道の桜が見ごろを迎えています'); add('sakuraT', z('sakuraT'), 'sakuraT', 'まもなく桜のトンネルです。花びらで路面が見えにくい所があります。ゆっくりお楽しみください', 1);
-    add('castle', ROUTE_LEN - 1500, 'castle', `前方に${D.dest}が見えてきます。城下町では観光の車が増えています`, 2); add('town', z('town'), null, '桜ヶ丘城下町に入ります。城跡公園の桜まつりは今日も開催中です'); add('river', z('river'), null, 'しばらく桜川沿いを走ります。川沿いの桜もきれいですよ'); }
-  if (se === 'summer') { add('sea', z('sea') || 1460, 'sea', 'ここから海岸バイパス。右手に青い海が広がります', 1); add('harbor', z('harbor'), 'harbor', '港町・汐見を通過します。漁港の朝市は午前中がおすすめです'); add('plateau', z('plateau'), 'plateau', '青凪高原に入ります。標高が上がり、気温が下がってきます'); add('mount', z('mount'), null, 'この先は山あいの区間。上り坂が続きます'); }
-  if (se === 'autumn') { add('maple', 1060, 'maple', '紅葉の丘を走行中。このあたりの紅葉は今が見ごろです'); add('gorge', z('gorge'), 'gorge', 'もみじ渓谷に入ります。カーブが続きますので速度にご注意ください', 1); add('mapleT', z('mapleT'), 'maple', 'まもなく紅葉のトンネル。赤と黄色の木々が道を包みます'); add('village', z('village'), 'village', '山あいの集落・楓見を通過します。稲架けと柿の木が秋の風物詩です'); }
-  if (se === 'winter') { add('snow', 820, 'snow', '白銀の雪原を走行中。車線は除雪済みですが、路肩には雪が残っています'); add('lake', z('lake'), 'lake', 'まもなく左手に氷鏡湖。湖面が凍り、冬の名所になっています', 1); add('snowwall', z('snowwall'), 'snowwall', 'この先、雪の山道。両側に高い雪の壁が続きます'); add('onsen', z('onsen'), 'onsen', '雪灯温泉郷に入ります。湯けむりの上がる温泉街です', 1); }
-  for (const f of world.fac) { add('fac:' + f.id, f.s - kmToS(10), 'facNear', `次の休憩施設は${f.name}、あと10kmです。${f.type === 'SA' ? 'フードコート・レストランがあります' : f.type === 'PA' ? '売店と展望スペースがあります' : '物産館とレストランがあります'}`); }
-  add('destNear', ROUTE_LEN - kmToS(30), 'destNear', `目的地の${D.dest}まで、あと30kmです`, 2);
-  return out.filter(o => o.s != null && isFinite(o.s)).sort((a, b) => a.s - b.s);
+// ---- 見どころ（ナビの観光案内と同乗者の反応）：world.feats（実際に置いた地物）から作る ----
+export function spotsFor(world) {
+  const D = world.D, se = world.season, out = [];
+  const feats = world.feats || [...D.bridges.map(([a, b, nm]) => ({ id: 'brg:' + nm, kind: 'bridge', name: nm, s0: a, s1: b, side: 0 })), ...D.tunnels.map(([a, b, nm]) => ({ id: 'tun:' + nm, kind: 'tunnel', name: nm, s0: a, s1: b, side: 0 }))];
+  const sideT = sd => sd > 0 ? '左手に' : sd < 0 ? '右手に' : '';
+  for (const f of feats) {
+    if (f.s0 > ROUTE_LEN + 20) continue;
+    const t = f.kind === 'dest' ? NAV.dest[se] : NAV[f.kind], trig = f.kind === 'dest' ? (se === 'spring' ? 'castle' : 'destView') : KIND_TRIG[f.kind] || null;
+    const at = Math.max(f.s0, 40); // 出発地点から始まる地物は出発直後に
+    out.push({ id: f.id, feat: f.id, kind: f.kind, s: at, s1: f.s1, nav: t ? t.replace('{name}', f.name).replace('{side}', sideT(f.side)) : null, trig, pri: f.kind === 'dest' ? 2 : ['sakuraT', 'lake', 'bridge', 'sea', 'onsen', 'mapleT'].includes(f.kind) ? 1 : 0 });
+  }
+  for (const f of world.fac) out.push({ id: 'fac:' + f.id, feat: 'fac:' + f.id, kind: 'fac', fac: f, s: f.s - 140, s1: f.s, nav: NAV.fac[f.type].replace('{name}', f.name), trig: null, pri: 0 });
+  for (const f of world.fac) out.push({ id: 'facNear:' + f.id, kind: 'facNear', fac: f, s: f.s - kmToS(10), s1: f.s, nav: null, trig: 'facNear', pri: 0 });
+  out.push({ id: 'destNear', kind: 'destNear', s: ROUTE_LEN - kmToS(30), s1: ROUTE_LEN, nav: null, trig: 'destNear', pri: 2 });
+  return out.filter(o => isFinite(o.s)).sort((a, b) => a.s - b.s);
 }
 // ---- 天気の変化の予定（季節ごと。s は実距離。開始直後・施設の直前・目的地の直前は避ける） ----
 function weatherPlan(world, R) {
@@ -81,85 +48,131 @@ function weatherPlan(world, R) {
   if (se === 'winter') { out.push({ type: 'sunny', s: pick(40, 90) }); out.push({ type: 'sunny', s: pick(230, 280) }); }
   return out.sort((a, b) => a.s - b.s);
 }
+const KID_FIRST = ['castle', 'tunnel', 'bridge', 'sea', 'rainbow', 'snowwall', 'harbor', 'sakuraT', 'snow', 'onsen', 'lake', 'destView'];
 
 export class LDEvents {
   constructor({ world, season, party, st }) {
-    this.world = world; this.season = season; this.party = party || []; this.st = st; this.opts = { talk: true, radio: true };
+    this.world = world; this.season = season; this.party = party || []; this.st = st; this.opts = { talk: true, nav: true, radio: true };
     const ev = st.ev = st.ev && typeof st.ev === 'object' ? st.ev : {};
     // 既定値で補う（古いセーブ互換）
-    for (const [k, v] of Object.entries({ used: [], radio: [], spots: [], req: null, reqN: 0, fatT: -1, eco: null, seed: hash(String(st.startAt || 1) + season) })) if (ev[k] == null) ev[k] = v;
+    for (const [k, v] of Object.entries({ used: [], radio: [], nav: [], spots: [], req: null, reqN: 0, fatT: -1, eco: null, trk: 0, seed: hash(String(st.startAt || 1) + season) })) if (ev[k] == null || (Array.isArray(v) && !Array.isArray(ev[k])) || (typeof v === 'number' && typeof ev[k] !== 'number')) ev[k] = v; // 型の違う古い値も既定値に
+    ev.ctx = Object.assign({ ate: [], asked: [], topics: [] }, ev.ctx && typeof ev.ctx === 'object' ? ev.ctx : {}); for (const k of ['ate', 'asked', 'topics']) if (!Array.isArray(ev.ctx[k])) ev.ctx[k] = [];
+    if (ev.req && typeof ev.req !== 'object') ev.req = null;
     ev.eco = Object.assign({ t: 0, cruiseT: 0, bandT: 0, acc: 0, brk: 0, idleT: 0, idleW: 0, weave: 0, maxKmh: 0 }, ev.eco || {});
     this.ev = ev; this.R = seeded(ev.seed); this.spots = spotsFor(world);
     this.pass = this.party.filter(p => p.role !== 'driver');
-    this.clock = 0; this.lastTalk = -TALK_GAP + 25; this.lastRadio = -RADIO_GAP + 8; this.subUntil = 0; this.queue = []; this.radioQ = [];
+    this.clock = 0; this.lastTalk = -TALK_GAP + 25; this.subUntil = -SUB_GAP; this.queue = []; this.navQ = []; this.radioQ = []; this.log = [];
     // 天気（セーブしない）：通り過ぎた区間の予定は済みにする
     this.base = world.D.weather || 'clear'; this.wx = { cur: this.base, fx: { rainbow: 0, cumulus: 0, sunbeam: 0 }, ev: null, log: [] };
     const s0 = st.maxS || 0; this.plan = weatherPlan(world, seeded(ev.seed + 7)).filter(p => p.s > s0 + 50);
     this.f = { acc: 0, v: null, accRun: 0, brkRun: 0, flips: [], sgn: 0, weaveCd: 0 };
-    this.trackFlag = false;
+    this.s = s0;
   }
   // ---- 字幕 ----
   who(p) { return p ? p.name : ''; }
-  fill(t, o = {}) { return t.replace('{fac}', o.fac || '').replace('{dest}', this.world.D.dest).replace('{item}', o.item || ''); }
-  // きっかけに合うセリフを選ぶ（子どもがいれば、はしゃぐ系のきっかけは子ども優先。使ったセリフは避ける）
-  line(trig, o = {}, who = null) {
+  fill(t, o = {}) { return t.replace(/\{fac\}/g, o.fac || '').replace(/\{dest\}/g, this.world.D.dest).replace(/\{item\}/g, o.item || ''); }
+  // きっかけに合うセリフを選ぶ（子どもがいれば、はしゃぐ系のきっかけは子ども優先）。一度出たセリフはそのドライブ中は出さない（候補が尽きたら黙る）
+  line(trig, o = {}, who = null, reuse = false) {
     const L = LINES[trig]; if (!L || !this.pass.length) return null;
-    const kidFirst = ['castle', 'tunnel', 'bridge', 'sea', 'rainbow', 'snowwall', 'harbor', 'sakuraT', 'snow', 'onsen'].includes(trig);
     let cands = who ? [who] : this.pass.slice();
-    if (!who) { if (kidFirst && cands.some(p => p.ch.age === 'child')) cands = cands.filter(p => p.ch.age === 'child'); else if (trig === 'fatigue' && cands.some(p => p.ch.age !== 'child')) cands = cands.filter(p => p.ch.age !== 'child'); }
-    const p = cands[Math.floor(this.R() * cands.length)], g = ageGroup(p.ch), arr = L[g] || L.adultF;
-    const fresh = arr.map((t, i) => [t, `${trig}:${g}:${i}`]).filter(q => !this.ev.used.includes(q[1])), pickA = fresh.length ? fresh : arr.map((t, i) => [t, `${trig}:${g}:${i}`]);
-    const [t, id] = pickA[Math.floor(this.R() * pickA.length)]; this.ev.used.push(id); if (this.ev.used.length > 120) this.ev.used.shift();
-    return { kind: 'talk', who: this.who(p), text: this.fill(t, o), dur: Math.min(6, 2.6 + t.length * 0.09), trig, p };
+    if (!who) { if (KID_FIRST.includes(trig) && cands.some(p => p.ch.age === 'child') && this.R() < 0.6) cands = cands.filter(p => p.ch.age === 'child'); else if (trig === 'fatigue' && cands.some(p => p.ch.age !== 'child')) cands = cands.filter(p => p.ch.age !== 'child'); }
+    // 話せるセリフが残っている人から選ぶ
+    const opts = []; for (const p of cands) { const k = voiceKey(p.ch); L[k].forEach((t, i) => { const id = `${trig}:${k}:${i}`; if (reuse || !this.ev.used.includes(id)) opts.push([p, k, t, id]); }); }
+    if (!opts.length) return null;
+    const byP = cands.filter(p => opts.some(q => q[0] === p)), p = byP[Math.floor(this.R() * byP.length)], mine = opts.filter(q => q[0] === p), [, k, t, id] = mine[Math.floor(this.R() * mine.length)];
+    if (!this.ev.used.includes(id)) this.ev.used.push(id);
+    const text = this.fill(t, o);
+    return { kind: 'talk', who: this.who(p), text, dur: Math.min(6, 2.6 + text.length * 0.09), trig, key: k, p };
   }
+  // 直近に同じ話題を出していないか（修正115：景色の話題は 実1500m≒表示48km 以内に繰り返さない）
+  recentTopic(k) { return this.ev.ctx.topics.some(q => q.k === k && this.s - q.s < 1500); }
   say(trig, o = {}, hi = false, who = null) {
     if (!this.opts.talk || !this.pass.length) return false;
     if (this.clock - this.lastTalk < (hi ? TALK_GAP_HI : TALK_GAP)) return false;
     if (this.queue.some(q => q.kind === 'talk')) return false;
+    if (!hi && this.recentTopic(trig)) return false;
     const l = this.line(trig, o, who); if (!l) return false;
-    this.queue.push(l); this.lastTalk = this.clock; return true;
+    this.queue.push(l); this.lastTalk = this.clock; this.ev.ctx.topics.push({ k: trig, s: Math.round(this.s) }); if (this.ev.ctx.topics.length > 30) this.ev.ctx.topics.shift(); return true;
   }
-  trackChanged() { this.trackFlag = true; }
+  // BGM の曲が変わった（main.js の onTrack から）：3曲のうち2回、ラジオのトークを曲間に差し込む（位置に依存しない内容。そのドライブで同じトークは繰り返さない）
+  trackChanged() {
+    const ev = this.ev; ev.trk++; if (!this.opts.radio || ev.trk % 3 === 0) return; // 3曲のうち2回の曲間に
+    const pool = RADIO[this.season] || [], left = pool.map((t, i) => [t, `r:${this.season}:${i}`]).filter(q => !ev.radio.includes(q[1])); if (!left.length) return;
+    const [t, id] = left[Math.floor(this.R() * left.length)]; ev.radio.push(id);
+    this.radioQ = [{ kind: 'radio', who: 'ラジオ', text: '📻 ' + t, dur: Math.min(8, 3.2 + t.length * 0.07), id, until: this.clock + 30 }];
+  }
   poll() {
     if (this.clock < this.subUntil + SUB_GAP) return null;
-    // ラジオ：曲の切り替わり直後か、前回から一定時間たったとき（見どころの直前は待たずに）
+    this.radioQ = this.radioQ.filter(r => this.clock < r.until); // 曲間を逃したトークは捨てる
     let q = null;
-    const ri = this.radioQ.findIndex(r => this.trackFlag || this.clock - this.lastRadio >= RADIO_GAP || r.urgent);
-    if (this.queue.length && (ri < 0 || this.queue[0].hi)) q = this.queue.shift();
-    else if (ri >= 0) { q = this.radioQ.splice(ri, 1)[0]; this.lastRadio = this.clock; this.trackFlag = false; }
+    // 優先順：ナビの観光案内（実物の手前で出す必要がある）→ 休憩明け・お願い等の優先セリフ → ラジオ（曲間）→ 景色へのセリフ
+    if (this.navQ.length && (this.navQ[0].urgent || !this.queue.some(x => x.hi))) q = this.navQ.shift();
+    else if (this.queue.length && this.queue[0].hi) q = this.queue.shift();
+    else if (this.radioQ.length) q = this.radioQ.shift();
     else if (this.queue.length) q = this.queue.shift();
     if (!q) return null;
-    this.subUntil = this.clock + q.dur; (this.log || (this.log = [])).push({ t: +this.clock.toFixed(1), s: Math.round(this.s || 0), kind: q.kind, who: q.who, text: q.text });
+    this.subUntil = this.clock + q.dur + (q.kind === 'nav' ? NAV_GAP - SUB_GAP : 0);
+    this.log.push({ t: +this.clock.toFixed(1), s: Math.round(this.s || 0), kind: q.kind, who: q.who, text: q.text, feat: q.feat || null, key: q.key || null });
     return { kind: q.kind, who: q.who, text: q.text, dur: q.dur };
   }
   // ---- 毎フレーム ----
   update(dt, f) {
     this.clock += dt; this.s = f.s; const ev = this.ev, s = f.s;
     this.weatherStep(dt, s);
-    // 見どころ：ラジオは表示15〜25km手前（実470〜780m）で候補に入れ、セリフは見どころに着いたとき
     for (const sp of this.spots) {
-      if (sp.radio && !ev.radio.includes(sp.id) && s > sp.s - kmToS(25) && s < sp.s + 60) { ev.radio.push(sp.id); if (this.opts.radio) this.radioQ.push({ kind: 'radio', who: 'ラジオ', text: '📻 ' + sp.radio, dur: Math.min(7, 3 + sp.radio.length * 0.07), id: sp.id, sAt: sp.s }); }
-      if (sp.trig && !ev.spots.includes(sp.id) && s > sp.s - 20 && s < sp.s + 300) { if (sp.trig === 'facNear') { const fc = this.world.fac.find(q => 'fac:' + q.id === sp.id); if (ev.req && ev.req.state === 'asked' && ev.req.fac === fc.id) { ev.spots.push(sp.id); continue; } if (this.say('facNear', { fac: fc.name })) ev.spots.push(sp.id); }
-        else if (this.say(sp.trig, {}, sp.pri > 0)) ev.spots.push(sp.id); }
-      else if (sp.trig && !ev.spots.includes(sp.id) && s >= sp.s + 300) ev.spots.push(sp.id); // 間に合わなかった反応は捨てる（後から言わない）
+      // ナビの観光案内：地物の 実780〜470m 手前で候補に入れる（間に合わなければ直前まで。通り過ぎたら出さない）
+      if (sp.nav && !ev.nav.includes(sp.id) && s > sp.s - NAV_LEAD[0] && s < sp.s + 40) { ev.nav.push(sp.id); if (this.opts.nav) this.navQ.push({ kind: 'nav', who: 'ナビ', text: '🧭 ' + sp.nav, dur: Math.min(7, 3 + sp.nav.length * 0.07), id: sp.id, feat: sp.feat, sAt: sp.s }); }
+      // 同乗者の反応：地物に着いたとき（入って 実300m まで）
+      if (sp.trig && !ev.spots.includes(sp.id) && s > sp.s - 20 && s < Math.min(sp.s1 + 20, sp.s + 300)) {
+        if (sp.kind === 'facNear') { if (ev.req && ev.req.state === 'asked' && ev.req.fac === sp.fac.id) { ev.spots.push(sp.id); continue; } if (this.say('facNear', { fac: sp.fac.name })) ev.spots.push(sp.id); }
+        else if (this.say(sp.trig, {}, sp.pri > 0)) ev.spots.push(sp.id);
+      } else if (sp.trig && !ev.spots.includes(sp.id) && s >= Math.min(sp.s1 + 20, sp.s + 300)) ev.spots.push(sp.id); // 間に合わなかった反応は捨てる
     }
-    for (const r of this.radioQ) r.urgent = s > r.sAt - 150; // 見どころの直前まで出せなかったら優先
-    this.radioQ = this.radioQ.filter(r => s < r.sAt + 120); // 通り過ぎた案内は出さない
-    // お願いイベント（1回のドライブで2回まで）
-    const req = ev.req;
-    if ((!req || req.state !== 'asked') && ev.reqN < 2 && this.pass.length && this.clock > 50) {
-      const nf = this.world.fac.find(q => q.s > s + 650 && q.s < s + 2600 && !(this.st.restedIds || []).includes(q.id));
-      if (nf && this.R() < dt * 0.05) { const p = this.pass.find(q => q.ch.age === 'child') || this.pass[Math.floor(this.R() * this.pass.length)], it = ITEMS[this.season][p.ch.age === 'child' ? 'child' : 'other'];
-        const l = this.line('ask', { fac: nf.name, item: it }, p); if (l && this.opts.talk && !this.queue.length) { l.hi = true; this.queue.push(l); this.lastTalk = this.clock; ev.req = { fac: nf.id, item: it, who: this.pass.indexOf(p), state: 'asked' }; ev.reqN++; }
-        else if (!this.opts.talk) ev.reqN = 2; }
-    }
-    if (req && req.state === 'asked') { const fc = this.world.fac.find(q => q.id === req.fac); if (fc && s > fc.s + 470) { req.state = 'missed'; this.say('askMiss', { fac: fc.name, item: req.item }, true, this.pass[req.who]); } }
+    for (const r of this.navQ) r.urgent = s > r.sAt - 150;
+    this.navQ = this.navQ.filter(r => s < r.sAt + 40);
+    this.askStep(dt, s);
     // 疲れた運転者への気遣い（大人の同乗者、休憩ごとに1回）
     if ((this.st.fatigue || 0) >= 70 && ev.fatT !== (this.st.rests || 0)) { if (this.say('fatigue', {}, true)) ev.fatT = this.st.rests || 0; }
     this.eco(dt, f);
   }
-  restStart(fac) { const r = this.ev.req; if (r && r.state === 'asked' && r.fac === fac.id) { r.state = 'done'; this.pendDone = { item: r.item, fac: fac.name, who: this.pass[r.who] }; } }
-  restEnd() { if (this.pendDone) { const d = this.pendDone; this.pendDone = null; const l = this.line('askDone', { item: d.item, fac: d.fac }, d.who); if (l && this.opts.talk) { l.hi = true; this.queue.unshift(l); this.lastTalk = this.clock; this.subUntil = Math.min(this.subUntil, this.clock - SUB_GAP); } } }
+  // ---- お願いイベント（修正109・115）：1回のドライブで2回まで。直近に食べた品・同じ系統・前にお願いした品は避け、無ければ食べ物以外のお願い ----
+  recentAte() { const s = this.s, fac = this.world.fac; return this.ev.ctx.ate.filter(a => { const nx = fac.find(f => f.s > a.s + 100); return !nx || s < nx.s + 470; }); } // 食べてから次の休憩施設を過ぎるまで
+  pickFood(p) {
+    const ate = this.recentAte(), names = new Set(ate.map(a => a.item)), cats = new Set(ate.map(a => a.cat).filter(c => c !== 'drink'));
+    let list = (FOOD[this.season] || []).filter(([n, c]) => !names.has(n) && !cats.has(c) && !this.ev.ctx.asked.includes(n));
+    if (p.ch.age === 'child') { const sw = list.filter(([, c]) => c === 'sweet' || c === 'cold'); if (sw.length) list = sw; }
+    return list.length ? list[Math.floor(this.R() * list.length)][0] : null;
+  }
+  askStep(dt, s) {
+    const ev = this.ev, req = ev.req;
+    if ((!req || req.state !== 'asked') && ev.reqN < 2 && this.pass.length && this.clock > 50 && this.opts.talk) {
+      const nf = this.world.fac.find(q => q.s > s + 650 && q.s < s + 2600 && !(this.st.restedIds || []).includes(q.id));
+      if (nf && this.R() < dt * 0.05 && !this.queue.length && this.clock - this.lastTalk > TALK_GAP_HI) {
+        const kid = this.pass.find(q => q.ch.age === 'child'), p = kid && this.R() < 0.6 ? kid : this.pass[Math.floor(this.R() * this.pass.length)], it = this.pickFood(p);
+        const l = it ? this.line('ask', { fac: nf.name, item: it }, p) : this.line('askNF', { fac: nf.name }, p);
+        if (l) { l.hi = true; this.queue.push(l); this.lastTalk = this.clock; ev.req = { fac: nf.id, item: it, who: this.pass.indexOf(p), state: 'asked' }; ev.reqN++; if (it) ev.ctx.asked.push(it); }
+      }
+    }
+    if (req && req.state === 'asked') { const fc = this.world.fac.find(q => q.id === req.fac); if (fc && s > fc.s + 470) { req.state = 'missed'; this.say('askMiss', { fac: fc.name, item: req.item }, true, this.pass[req.who]); } }
+  }
+  // 休憩の開始（longdrive.startRest）。お願いの施設なら、その品をムービーの食事に加える。戻り値＝ムービーで食べるもの（cutscene と共用）
+  restStart(fac) {
+    const r = this.ev.req; let reqItem = null;
+    if (r && r.state === 'asked' && r.fac === fac.id) { r.state = 'done'; reqItem = r.item || null; this.pendDone = { item: r.item, fac: fac.name, who: this.pass[r.who] }; }
+    else if (r && r.state === 'asked') r.state = 'dropped'; // 別の施設で先に休憩したら、そのお願いは見送り（後で同じ品を求め直さない）
+    const meal = mealFor(fac.type, this.season, reqItem);
+    for (const it of meal.items) this.ev.ctx.ate.push({ item: it, cat: CAT[it] || 'meal', s: Math.round(fac.s), fac: fac.id });
+    if (this.ev.ctx.ate.length > 20) this.ev.ctx.ate.splice(0, this.ev.ctx.ate.length - 20);
+    this.lastMeal = meal; return meal;
+  }
+  // 休憩の終わり：お願いがかなった喜び、または食べたものの話（どちらか1つ）
+  restEnd() {
+    let l = null;
+    if (this.pendDone) { const d = this.pendDone; this.pendDone = null; l = d.item ? this.line('askDone', { item: d.item, fac: d.fac }, d.who, true) : this.line('askDoneNF', { fac: d.fac }, d.who, true); }
+    else if (this.lastMeal && this.pass.length) { const p = this.pass[Math.floor(this.R() * this.pass.length)], item = p.ch.age === 'child' ? this.lastMeal.sweet : this.lastMeal.main; l = this.line('ateRecall', { item }, p); }
+    this.lastMeal = null;
+    if (l && this.opts.talk) { l.hi = true; this.queue.unshift(l); this.lastTalk = this.clock; this.subUntil = Math.min(this.subUntil, this.clock - SUB_GAP); }
+  }
   // ---- 修正110 エコ運転スコア ----
   eco(dt, f) {
     const E = this.ev.eco, F = this.f, kmh = f.kmh, main = Math.abs(f.u) < 9.9;
@@ -191,7 +204,7 @@ export class LDEvents {
     sc += it('無駄なアイドリング', -Math.min(10, E.idleT / 30), `${Math.round(E.idleT)}秒`);
     const score = Math.max(0, Math.min(100, Math.round(sc))), rank = score >= 95 ? 'S' : score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 50 ? 'C' : 'D';
     let comment = null;
-    if (this.pass.length) { const p = this.pass.find(q => q.ch.age === 'child') || this.pass[0], g = ageGroup(p.ch), L = ECO_COMMENT[score >= 85 ? 'hi' : score >= 60 ? 'mid' : 'lo'], arr = L[g] || L.adultF; comment = { who: p.name, text: arr[hash(String(score) + p.name) % arr.length] }; }
+    if (this.pass.length) { const p = this.pass.find(q => q.ch.age === 'child') || this.pass[0], g = voiceKey(p.ch), L = ECO_COMMENT[score >= 85 ? 'hi' : score >= 60 ? 'mid' : 'lo'], arr = L[g]; comment = { who: p.name, text: arr[hash(String(score) + p.name) % arr.length], key: g }; } // 修正118：性別×年齢帯で一言を変える
     return { score, rank, items, comment };
   }
   // ---- 修正111 天気 ----
@@ -202,10 +215,10 @@ export class LDEvents {
     if (e) { e.t += dt; const t = e.t;
       if (e.type === 'shower') { // 曇り10秒 → にわか雨40秒 → 晴れ。雨上がりに虹（5秒で現れ、40秒見えて、10秒で消える）
         if (t < 10) cur = 'cloudy'; else if (t < 50) cur = 'rain'; else { cur = this.base === 'cloudy' ? 'cloudy' : 'clear'; rb = t < 56 ? 0 : t < 100 ? 1 : 0; }
-        if (t > 50 && !e.said) { e.said = 1; } if (t > 10 && !e.rs) { e.rs = 1; this.say('rain', {}, true); } if (t > 60 && !e.rb) { e.rb = 1; if (this.opts.radio) this.radioQ.unshift({ kind: 'radio', who: 'ラジオ', text: '📻 雨が上がりました。進行方向に虹が見えています', dur: 4.5, sAt: s + 400, urgent: true }); } if (t > 64 && !e.rbs) { e.rbs = 1; this.say('rainbow', {}, true); }
+        if (t > 50 && !e.said) { e.said = 1; } if (t > 10 && t < 45 && !e.rs) { if (this.say('rain', {}, true)) e.rs = 1; } // 言えなかったら雨の間は再試行 if (t > 64 && t < 98 && !e.rbs) { if (this.say('rainbow', {}, true)) e.rbs = 1; }
         if (t > 112) W.ev = null; }
-      else if (e.type === 'cumulus') { cu = t < 30 ? t / 30 : t < 70 ? 1 : 0; if (t > 25 && !e.s1) { e.s1 = 1; this.say('cumulus', {}, true); } if (t > 90) W.ev = null; }
-      else if (e.type === 'sunny') { cur = 'clear'; sb = t < 45 ? 1 : 0; if (t > 8 && !e.s1) { e.s1 = 1; this.say('sunbeam', {}, true); } if (t > 55) W.ev = null; }
+      else if (e.type === 'cumulus') { cu = t < 30 ? t / 30 : t < 70 ? 1 : 0; if (t > 25 && t < 70 && !e.s1) { if (this.say('cumulus', {}, true)) e.s1 = 1; } if (t > 90) W.ev = null; }
+      else if (e.type === 'sunny') { cur = 'clear'; sb = t < 45 ? 1 : 0; if (t > 8 && t < 45 && !e.s1) { if (this.say('sunbeam', {}, true)) e.s1 = 1; } if (t > 55) W.ev = null; }
       else if (e.type === 'cloud') { cur = 'cloudy'; if (t > 50) W.ev = null; }
     }
     W.cur = cur; ap('rainbow', rb, rb ? 0.2 : 0.1); ap('cumulus', cu, 0.05); ap('sunbeam', sb, 0.25);

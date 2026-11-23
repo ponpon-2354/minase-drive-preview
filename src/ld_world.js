@@ -4,11 +4,11 @@
 // 距離と時間の約束（第5章）：ゲーム内の時間は現実の32倍（現実45分＝ゲーム内24時間）。
 // 道路の実距離も 1/32 に縮めて作り、表示する距離は「実距離×32」。時速80kmで走ると表示上も時速80kmで、
 // 本線12,500m（表示400km）を5時間（現実9分22秒）で走り切り、09:00出発なら14:00に着く。
-import { GB } from './geo.js?v=0.7.0';
-import { L, FONT } from './textures.js?v=0.7.0';
-import { City, CH } from './city.js?v=0.7.0';
-import { rng, clamp, lerp } from './math.js?v=0.7.0';
-import { MODELS, pickColor, isCommercial, plateClass } from './carmodels.js?v=0.7.0';
+import { GB } from './geo.js?v=0.8.0';
+import { L, FONT } from './textures.js?v=0.8.0';
+import { City, CH } from './city.js?v=0.8.0';
+import { rng, clamp, lerp } from './math.js?v=0.8.0';
+import { MODELS, pickColor, isCommercial, plateClass } from './carmodels.js?v=0.8.0';
 
 export const DIST_SCALE = 32, TIME_SCALE = 32;
 export const ROUTE_LEN = 12500;   // 出発点 s=0 から目的地の駐車場入口まで（表示400km）
@@ -168,6 +168,8 @@ export class LongWorld {
     for (const f of this.fac || []) if (f.side * u > 9 && f.side * u < 135 && s > f.s - 230 && s < f.s + 450) { const d = Math.max(0, f.side * u - 120, f.s - 200 - s, s - (f.s + 420)); return f.y - 0.05 + d * 0.3; }
     if (s > ROUTE_LEN - 20 || s < -100) return ry - 0.05;
     const w = this.zoneW(s, side); let h = 0; for (const t in w) h += w[t] * this.typeH(t, s, a, ry);
+    // 修正104：休憩施設の手前 600m は、施設側の山・雪の壁を少しずつ低くして、遠くから建物と看板が見えるようにする（崖や雪の壁で隠れてポップインしない）
+    for (const f of this.fac || []) if (f.side * u > 12 && f.side * u < 260 && s > f.s - 600 && s <= f.s - 230) { const t = smooth(clamp((s - (f.s - 600)) / 300, 0, 1)), flat = Math.min(h, ry - 0.4 + Math.max(0, f.side * u - 150) * 0.08); h = lerp(h, flat, t); }
     // 道路の肩（|u| 10.5〜13）は道路の高さから地形へなめらかに
     if (a < 13) h = lerp(ry - 0.05, h, smooth(clamp((a - ROAD_HW) / 2.5, 0, 1)));
     return h;
@@ -240,6 +242,32 @@ export class LongWorld {
     { const a = this.pos(S_START + 1, -10), b = this.pos(S_START + 1, 10); this.W.addWall(a[0], a[2], b[0], b[2], -50, 500); }
     for (const f of this.fac) this.facility(f);
     this.startArea(); this.destination(); this.destFar(); this.signs(); this.farView();
+    this.feats = this.buildFeats();
+  }
+  // 修正117：ナビの観光案内・同乗者の反応の対象になる「実際に配置されている地物」の表（季節×区間×地物）。
+  // 載せるのは、このルートに実物のジオメトリを置いているものだけ：橋（アーチと橋名板）・トンネル（坑口と名板）・地形タイプの区間（その区間に専用の景観を置いている：桜並木・桜のトンネル・川・海・港・高原・渓谷・紅葉のトンネル・集落・雪原・氷の湖・雪の壁・温泉街・城下町）・目的地。
+  // side：+1 は zones の3番目（u>0 側）、-1 は4番目、0 は両側・道路上。案内の「左手／右手」はこの値から作る（u>0 が進行方向の左）
+  buildFeats() {
+    const D = this.D, out = [], add = (id, kind, name, s0, s1, side = 0) => out.push({ id, kind, name, s0, s1, side });
+    for (const [a, b, nm] of D.bridges) add('brg:' + nm, 'bridge', nm, a, b);
+    for (const [a, b, nm] of D.tunnels) add('tun:' + nm, 'tunnel', nm, a, b);
+    const SHOW = { sakura: '桜並木', sakuraT: '桜のトンネル', river: '桜川', sea: '海', bay: '入り江', harbor: '港町・汐見の漁港', plateau: '青凪高原', gorge: 'もみじ渓谷', mapleT: '紅葉のトンネル', village: '山あいの集落・楓見', snowfield: '白銀の雪原', lake: '氷鏡湖', snowwall: '雪の壁', onsen: '雪灯温泉郷', town: '城下町' };
+    const secName = s => { let n = ''; for (const [ss, nm] of D.sections) if (ss <= s + 1) n = nm; return n; };
+    for (const z of D.zones) for (const [k, side] of [[z[2], 1], [z[3], -1]]) {
+      if (!SHOW[k] || z[1] - z[0] < 150) continue;
+      if (z[2] === z[3] && side < 0) continue; // 両側同じなら1件（side 0）
+      if (k === 'river' && this.season !== 'spring') continue;
+      if (k === 'town' && this.season !== 'spring') continue; // 夏の出発地の町並みは見どころにしない
+      const sn = secName(z[0] + 1), nm = (k === 'gorge' || k === 'sea') && sn && !/トンネル|橋/.test(sn) ? sn : SHOW[k];
+      if (k === 'snowfield' && out.some(o => o.kind === 'snowfield')) continue; // 雪原は全線に続くので最初の区間だけ
+      const id = k + ':' + z[0];
+      // 同じ種類が連続する区間は1つにまとめる
+      const prev = out.find(o => o.kind === k && Math.abs(o.s1 - z[0]) < 1 && o.side === (z[2] === z[3] ? 0 : side)); if (prev) { prev.s1 = z[1]; continue; }
+      add(id, k, nm, z[0], z[1], z[2] === z[3] ? 0 : side);
+    }
+    if (this.season === 'autumn') add('maple:hill', 'maple', '紅葉の丘', 1000, 2000, 0); // 秋は全線が紅葉の木（tree:'maple'）。丘の区間を見どころに
+    add('dest', 'dest', D.dest, ROUTE_LEN - 1500, ROUTE_LEN, 0);
+    return out.sort((p, q) => p.s0 - q.s0);
   }
   segment(g, s0, s1) {
     const season = this.season, D = this.D, R = rng(Math.floor(s0) * 7 + 3), ds = 10, W = season === 'winter';
@@ -281,6 +309,8 @@ export class LongWorld {
       if (Math.round(s) % 40 === 0) for (const u of [-5, 5]) { const p = this.pos(s, u), gy = this.terrainH(s, u > 0 ? 14 : -14) - 4; g.s.box(p[0] - 1, gy, p[2] - 1, p[0] + 1, p[1] - 1.4, p[2] + 1, { c: [0.72, 0.72, 0.7] }); }
       const under = (this.terrainH(s, 14) + this.terrainH(s, -14)) / 2 - 1;
       g.s.quadN([pa[0], under, pa[2]], [pb[0], under, pb[2]], [qb[0], under, qb[2]], [qa[0], under, qa[2]], [0, 1, 0], { c: this.season === 'winter' ? [0.92, 0.94, 0.98] : [0.5, 0.6, 0.45], lay: this.season === 'winter' ? L.WHITE : L.GRASS }); }
+    // 修正117：橋だと一目で分かるように、両側にアーチ（上路から見える鋼製アーチと吊り材）を架け、橋の両端に橋名板を付ける
+    for (const B of this.D.bridges) if (s1 > B[0] && s0 < B[1]) this.bridgeArch(g, Math.max(s0, B[0]), Math.min(s1, B[1]), B);
     // トンネル：側壁・天井・照明。坑口の上は山肌でふさぐ
     if (tun) for (let s = s0; s < s1; s += 10) { const e = s + 10, wallC = { c: [0.85, 0.84, 0.8], lay: L.TUNNELWALL };
       for (const side of [1, -1]) { const p = this.pos(s, side * 10.4), q = this.pos(e, side * 10.4); g.s.quadN([p[0], p[1], p[2]], [q[0], q[1], q[2]], [q[0], q[1] + 6.2, q[2]], [p[0], p[1] + 6.2, p[2]], [-side, 0, 0], wallC);
@@ -300,9 +330,25 @@ export class LongWorld {
     this.terrainSeg(g, s0, s1);
     this.scenery(g, s0, s1, R);
   }
+  // 修正117：橋のアーチ（チャンクの範囲 s0〜s1 の分だけ作る）。B=[始点, 終点, 橋名]。アーチの高さは橋長の約12%（6〜22m）
+  bridgeArch(g, s0, s1, B) {
+    const [a, b, nm] = B, L0 = b - a, rise = Math.min(22, Math.max(6, L0 * 0.12)), col = { c: { spring: [0.92, 0.45, 0.5], summer: [0.95, 0.96, 0.98], autumn: [0.85, 0.3, 0.18], winter: [0.3, 0.5, 0.85] }[this.season] || [0.8, 0.8, 0.8] };
+    const H = s => { const t = clamp((s - a) / L0, 0, 1); return 1.1 + rise * 4 * t * (1 - t); };
+    for (const side of [1, -1]) { const u = side * 10.6;
+      for (let s = s0; s < s1 - 0.01; s += 5) { const e = Math.min(s1, s + 5); g.s.beam(this.pos(s, u, H(s)), this.pos(e, u, H(e)), 0.45, col);
+        if (Math.round(s - a) % 10 === 0 && H(s) > 2.2) g.s.beam(this.pos(s, u, 1.1), this.pos(s, u, H(s)), 0.07, { c: col.c.map(v => v * 0.85) }); }
+    }
+    // 上の横つなぎ（車両の上 7m 以上の所だけ）
+    for (let s = Math.ceil((s0 - a) / 20) * 20 + a; s < s1; s += 20) if (H(s) > 7.5) g.s.beam(this.pos(s, -10.6, H(s)), this.pos(s, 10.6, H(s)), 0.3, col);
+    // 橋名板（両端の親柱）
+    const lay = (this.tunnelSign || (this.tunnelSign = {}))['br:' + nm] || (this.tunnelSign['br:' + nm] = this.greenSign([nm], { bg: '#3b3a36', scale: 0.8 }));
+    for (const sp of [a, b]) if (sp >= s0 && sp < s1) for (const side of [1, -1]) { const p = this.pos(sp, side * 10.6), y = p[1];
+      g.s.box(p[0] - 0.5, y, p[2] - 0.5, p[0] + 0.5, y + 2.6, p[2] + 0.5, { c: [0.7, 0.68, 0.64] });
+      const dir = sp === a ? -1 : 1, q0 = this.pos(sp + dir * 0.52, side * 10.6 - 0.45, 1.3), q1 = this.pos(sp + dir * 0.52, side * 10.6 + 0.45, 1.3); g.s.panel(q0[0], q0[2], q1[0], q1[2], y + 1.3, y + 2.3, 0.03, [0, 0, dir], { c: [1, 1, 1], mat: 16, lay }); }
+  }
   groundCol(k) {
     const sea = this.season, D = this.D;
-    switch (k) { case 'snow': return [0.95, 0.96, 1]; case 'ice': return [0.78, 0.88, 0.95]; case 'sand': return [0.95, 0.88, 0.7]; case 'rock': return [0.62, 0.58, 0.52];
+    switch (k) { case 'snow': return [0.95, 0.96, 1]; case 'ice': return [0.55, 0.74, 0.9]; /* 修正117：凍った湖面は雪原と見分けられる青みの氷色に */ case 'sand': return [0.95, 0.88, 0.7]; case 'rock': return [0.62, 0.58, 0.52];
       case 'field': return sea === 'autumn' ? [0.82, 0.7, 0.4] : [0.75, 0.66, 0.5]; case 'paddy': return sea === 'spring' ? [0.75, 0.82, 0.9] : sea === 'summer' ? [0.55, 0.85, 0.4] : [0.85, 0.75, 0.42];
       case 'forest': return sea === 'autumn' ? [0.95, 0.55, 0.3] : sea === 'winter' ? [0.92, 0.94, 0.98] : sea === 'spring' ? [0.7, 0.85, 0.6] : [0.55, 0.78, 0.5];
       default: return D.grass; }
@@ -448,6 +494,10 @@ export class LongWorld {
       if ((best === 'snowfield' || best === 'onsen' || best === 'hills' || best === 'lake' || best === 'valley') && R() < 0.35) { const q = P(s0 + R() * 40, 18 + R() * 22); this.ball(g.s, q[0], q[1] - 0.2, q[2], 1.9, { c: [0.97, 0.98, 1] }, 8, true);
         const at2 = this.at(s0), ex = -Math.cos(at2.h) * side * 1.75, ez = Math.sin(at2.h) * side * 1.75; g.s.cbox(q[0] + ex, q[1] + 0.55, q[2] + ez, 0.9, 1.1, 0.9, { c: [0.12, 0.1, 0.1] }); g.det.cbox(q[0] + ex * 0.9, q[1] + 0.45, q[2] + ez * 0.9, 0.12, 0.2, 0.12, { c: [1, 0.7, 0.35], mat: 18 }); }
       if ((best === 'snowfield' || best === 'onsen' || best === 'village' || best === 'hills') && R() < 0.35) { const q = P(s0 + R() * 40, 15 + R() * 20); this.ball(g.s, q[0], q[1] + 0.5, q[2], 0.65, { c: [0.98, 0.98, 1] }); this.ball(g.s, q[0], q[1] + 1.4, q[2], 0.42, { c: [0.98, 0.98, 1] }); g.det.cyl(q[0], q[1] + 1.72, q[2], 0.22, 0.3, 6, { c: [0.75, 0.2, 0.15] }); g.det.cbox(q[0] - Math.cos(yaw) * side * 0.4, q[1] + 1.45, q[2] + Math.sin(yaw) * side * 0.4, 0.07, 0.07, 0.07, { c: [0.1, 0.1, 0.1] }); }
+      // 修正117：氷鏡湖（凍った湖）の上のわかさぎ釣りのテント（色とりどりの小屋）と、湖面に積もった雪の縞。湖だと一目で分かるように
+      if (best === 'lake' && R() < 0.75) for (let k = 0; k < 3; k++) { const q = P(s0 + 8 + R() * 34, 45 + R() * 110), cols = [[0.9, 0.25, 0.2], [0.2, 0.45, 0.85], [0.95, 0.6, 0.1], [0.3, 0.65, 0.35]], c = cols[(R() * 4) | 0];
+        g.s.setXf(q[0], q[1], q[2], yaw + R() * 1.5); g.s.box(-1.1, 0, -1.1, 1.1, 1.5, 1.1, { c }); g.s.box(-1.25, 1.5, -1.25, 1.25, 1.75, 1.25, { c: c.map(v => v * 0.8) }); g.s.box(-0.35, 0, 1.1, 0.35, 1.1, 1.12, { c: [0.15, 0.12, 0.1] }); g.s.clearXf(); }
+      if (best === 'lake' && R() < 0.5) { const q = P(s0 + 12, 70 + R() * 60), at2 = this.at(s0); g.s.setXf(q[0], q[1] + 0.03, q[2], at2.h + 0.4); g.s.quadN([-14, 0, -3], [14, 0, -3], [14, 0, 3], [-14, 0, 3], [0, 1, 0], { c: [0.93, 0.95, 1], lay: L.WHITE }); g.s.clearXf(); }
       // 除雪車の作業（路肩の外で停車中のロータリー除雪車：黄色い車体・回転灯・雪の吹き上げ）
       if ((best === 'snowwall' || best === 'snowfield') && R() < 0.12) { const s = s0 + 20, q = this.pos(s, side * 14.2), y = this.terrainH(s, side * 14.2), at2 = this.at(s);
         g.s.setXf(q[0], y, q[2], at2.h); g.s.box(-1.3, 0.4, -2.5, 1.3, 2.4, 2.2, { c: [0.95, 0.72, 0.1] }); g.s.box(-1.25, 2.4, -0.6, 1.25, 3.4, 1.4, { c: [0.95, 0.72, 0.1] }); g.s.box(-1.2, 2.6, 1.38, 1.2, 3.25, 1.42, { c: [0.3, 0.4, 0.5] });

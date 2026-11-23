@@ -1,20 +1,16 @@
 // 長距離ドライブモードのムービー（休憩：4季節×1〜3人、到着：4季節×1〜3人 ＝ 24通り）
 // 3Dの人物と3Dの場面を、カメラの移動・人物の動作（食べる・飲む・話す・眺める・寝そべる・歩く）・表情の切り替えで見せる。
 // 画面の文字（字幕・時刻）はHTMLで重ねる。スキップしても休憩・時刻・クリアの処理は呼び出し側で必ず行う。
-import { GB } from './geo.js?v=0.7.0';
-import { L, FONT, renderLayer } from './textures.js?v=0.7.0';
-import { rng, clamp, lerp } from './math.js?v=0.7.0';
-import { buildChar, buildFace, headPos, charHeight } from './passengers.js?v=0.7.0';
+import { GB } from './geo.js?v=0.8.0';
+import { L, FONT, renderLayer } from './textures.js?v=0.8.0';
+import { rng, clamp, lerp } from './math.js?v=0.8.0';
+import { buildChar, buildFace, headPos, charHeight } from './passengers.js?v=0.8.0';
+import { MENU, MOVIE, mealFor, voiceKey } from './ld_lines.js?v=0.8.0';
 
 const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 const V = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
-// ---- 料理・飲み物（季節と施設で変える） ----
-const MENU = {
-  SA: { spring: ['山菜そば', '桜もち', '緑茶'], summer: ['冷やし中華', 'かき氷', 'アイスコーヒー'], autumn: ['芋煮定食', '栗ごはん', 'ほうじ茶'], winter: ['味噌ラーメン', '鍋焼きうどん', 'ホットココア'] },
-  MICHI: { spring: ['たけのこご飯定食', '山菜の天ぷら', '桜茶'], summer: ['焼きとうもろこし', '夏野菜カレー', '地元のサイダー'], autumn: ['新そば', 'きのこ汁', 'りんごジュース'], winter: ['きりたんぽ鍋', 'おでん', '甘酒'] },
-  PA: { spring: ['おにぎり', 'さくらソフト', '缶コーヒー'], summer: ['ソフトクリーム', 'ラムネ', 'スポーツドリンク'], autumn: ['焼きいも', '肉まん', '温かいお茶'], winter: ['肉まん', 'おしるこ', 'ホットコーヒー'] }
-};
+// ---- 料理・飲み物（季節と施設で変える）：メニューは会話側（ld_events）と共用（修正115） ----
 function dishMesh(g, x, y, z, season, kind, R) { // 料理の見た目（器と中身の色）
   const bowl = { c: [0.85, 0.2, 0.15] }, white = { c: [0.97, 0.96, 0.93] };
   if (kind === 0) { // 主食（どんぶり・皿）
@@ -64,18 +60,31 @@ function outside(g, season, z0, R, opt = {}) { // z0 から奥に広がる景色
 function rotX(g, i0, ang, cy, cz) { const a = g.a, c = Math.cos(ang), s = Math.sin(ang); for (let i = i0; i < a.length; i += 13) { const y = a[i + 1] - cy, z = a[i + 2] - cz; a[i + 1] = cy + y * c - z * s; a[i + 2] = cz + y * s + z * c; const ny = a[i + 4], nz = a[i + 5]; a[i + 4] = ny * c - nz * s; a[i + 5] = ny * s + nz * c; } }
 
 // ---- セリフ（人数・季節・場面別）。role: driver / p1 / p2、mono は心の声 ----
-function lines(kind, season, n, party, fac) {
-  const p1 = party[1], p2 = party[2], kid = q => q && q.ch.age === 'child', menu = (MENU[fac ? fac.type : 'SA'] || MENU.SA)[season];
+// 修正115：休憩で食べるもの（meal）は会話側と同じ値（longdrive が ld_events.restStart で決めて info.meal に入れる）。
+// 修正118：同乗者のセリフは性別×年齢帯（ld_lines.js の MOVIE）で変える
+function lines(kind, season, n, party, fac, meal) {
+  const p1 = party[1], p2 = party[2], kid = q => q && q.ch.age === 'child', k1 = p1 && voiceKey(p1.ch), k2 = p2 && voiceKey(p2.ch);
+  const M = meal || mealFor(fac ? fac.type : 'SA', season), fill = t => t.replace(/\{dest\}/g, DEST[season]);
+  const pick = (tbl, k, i, alt) => { const a = MOVIE[tbl][k]; return a[(alt && k1 === k2 ? i + 1 : i) % a.length]; };
   if (kind === 'rest') {
-    if (n === 1) return [['mono', `（${fac.name}でひと休み。${menu[0]}にしよう）`], ['mono', `（${{ spring: '窓の外の桜がきれいだ', summer: '外は暑いけど、ここは涼しい', autumn: '山がすっかり色づいている', winter: '外は一面の銀世界だ' }[season]}）`], ['mono', '（目的地まで、あと少し。ゆっくり休んでいこう）']];
-    if (n === 2) return [['driver', `${menu[0]}、おいしいね`], ['p1', kid(p1) ? 'これ、すっごくおいしい！' : `${menu[1]}も頼んでよかったね`], ['driver', `${{ spring: '桜が満開だね', summer: '海がきらきらしてたね', autumn: '紅葉がすごかったね', winter: 'あの雪の壁、高かったね' }[season]}`], ['p1', kid(p1) ? '着いたら何するの？' : 'ここからはわたしがナビするね']];
-    return [['driver', 'みんな、お疲れさま'], ['p1', kid(p1) ? 'おなかすいたー！' : `${menu[0]}、あったまるね`], ['p2', kid(p2) ? 'デザートも食べたい！' : `${menu[2]}、ほっとする〜`], ['driver', '休んだら、もうひと頑張りだね'], ['p1', kid(p1) ? 'がんばれー！' : '運転ありがとう']];
+    if (n === 1) return [['mono', `（${fac.name}でひと休み。${M.main}にしよう）`], ['mono', `（${{ spring: '窓の外の桜がきれいだ', summer: '外は暑いけど、ここは涼しい', autumn: '山がすっかり色づいている', winter: '外は一面の銀世界だ' }[season]}）`], ['mono', '（目的地まで、あと少し。ゆっくり休んでいこう）']];
+    const it1 = M.req || (kid(p1) ? M.sweet : M.main), it2 = kid(p2) ? M.sweet : M.drink;
+    const out = [['driver', `${M.main}にしてよかった。いただきます`], ['p1', pick('rest', k1, 0).replace('{item}', it1)]];
+    if (n >= 3) out.push(['p2', pick('rest', k2, 0).replace('{item}', it2)]);
+    out.push(['driver', `${{ spring: '桜が満開だったね', summer: '海がきらきらしてたね', autumn: '紅葉がすごかったね', winter: 'あの雪の壁、高かったね' }[season]}`], ['p1', pick('rest', k1, 1)]);
+    if (n >= 3) out.push(['p2', pick('rest', k2, 1, true)]);
+    out.push(['p1', pick('rest', k1, 2)]);
+    return out;
   }
-  const dest = { spring: '桜ヶ丘城', summer: '青凪高原', autumn: '楓見山荘', winter: '雪灯温泉郷' }[season];
-  if (n === 1) return [['mono', `（${dest}に着いた。400km、走りきった）`], ['mono', `（${{ spring: '満開の桜の下で、ひとりのお花見', summer: 'ハンモックに揺られて、風の音を聞く', autumn: '紅葉を眺めながら、温かいお茶を一杯', winter: '雪見の露天風呂。体の芯まで温まる' }[season]}）`], ['mono', '（いい旅だった）']];
-  if (n === 2) return [['p1', kid(p1) ? 'ついたー！' : `${dest}、来られてよかった`], ['driver', `${{ spring: '桜、満開だね', summer: '涼しくて気持ちいいね', autumn: '窓の外、真っ赤だね', winter: '足湯、あったかいね' }[season]}`], ['p1', kid(p1) ? 'また来たい！' : '長い運転、お疲れさま'], ['driver', 'また一緒に来よう']];
-  return [['p1', kid(p1) ? 'ついたー！' : 'やっと着いたね'], ['p2', kid(p2) ? 'わーい！' : `${dest}、最高だね`], ['driver', `${{ spring: 'お弁当にしよう', summer: '飲み物、冷えてるよ', autumn: 'お茶をいれたよ', winter: '湯けむりがすごいね' }[season]}`], ['p1', kid(p1) ? 'もっと遊びたい！' : '運転おつかれさま'], ['p2', kid(p2) ? 'また来ようね！' : 'いい旅になったね'], ['driver', 'みんなで記念にもう一枚']];
+  if (n === 1) return [['mono', `（${DEST[season]}に着いた。400km、走りきった）`], ['mono', `（${{ spring: '満開の桜の下で、ひとりのお花見', summer: 'ハンモックに揺られて、風の音を聞く', autumn: '紅葉を眺めながら、温かいお茶を一杯', winter: '雪見の露天風呂。体の芯まで温まる' }[season]}）`], ['mono', '（いい旅だった）']];
+  const out = [['p1', fill(pick('arrive', k1, 0))]];
+  if (n >= 3) out.push(['p2', fill(pick('arrive', k2, 0, true))]);
+  out.push(['driver', `${{ spring: '桜、満開だね', summer: '涼しくて気持ちいいね', autumn: '窓の外、真っ赤だね', winter: '足湯、あったかいね' }[season]}`], ['p1', fill(pick('arrive', k1, 1))]);
+  if (n >= 3) out.push(['p2', fill(pick('arrive', k2, 1, true))]);
+  out.push(['driver', n >= 3 ? 'みんなで記念にもう一枚' : 'また一緒に来よう']);
+  return out;
 }
+const DEST = { spring: '桜ヶ丘城', summer: '青凪高原', autumn: '楓見山荘', winter: '雪灯温泉郷' };
 
 // ======== 場面の組み立て ========
 // 返す値：{ env: GB, dyn: [{ g, m(t) }], actors: [{ ch, at:[x,y,z], yaw, base:'sit'|'floor'|..., poses:{name:opt}, act(t, talking) }], shots: [...], light, particles, title }
@@ -119,7 +128,7 @@ function sceneRest(R, season, party, fac, rnd) {
       const f = yaw === 0 ? 1 : -1; dishMesh(g, x - 0.12 * f, 0.76, z + 0.42 * f, season, 0, rnd); dishMesh(g, x + 0.16 * f, 0.76, z + 0.36 * f, season, 1, rnd); dishMesh(g, x + 0.26 * f, 0.76, z + 0.5 * f, season, 2, rnd); });
     // ほかの利用客（周りのテーブル）
     for (let k = 0; k < 5; k++) { const x = -6 + k * 3, z = k % 2 ? -2.6 : -0.6; g.box(x - 0.5, 0.72, z - 0.4, x + 0.5, 0.76, z + 0.4, { c: [0.55, 0.4, 0.28] }); const ch = { sex: rnd() < 0.5 ? 1 : 0, age: ['20', '30', '40', '60', 'child'][(rnd() * 5) | 0], outfit: rnd() < 0.5 ? 'casual' : 'travel', seed: 40 + k };
-      g.setXf(x, 0.46, z - 0.62, 0); buildChar(g, ch, season, 'sit', { hands: [[-0.12, 0.3, 0.32], [0.12, 0.3, 0.32]] }); buildFace(g, ch, 'smile'); g.clearXf(); dishMesh(g, x, 0.76, z - 0.2, season, k % 3, rnd); }
+      g.setXf(x, 0.46, z - 0.62, 0); buildChar(g, ch, season, 'sit', { hands: [[-0.12, 0.3, 0.32], [0.12, 0.3, 0.32]], lod: 1 }); /* 修正121：利用客は一段軽い高ポリ版 */ buildFace(g, ch, 'smile'); g.clearXf(); dishMesh(g, x, 0.76, z - 0.2, season, k % 3, rnd); }
   }
   // 動作：食べる・飲む・話す・窓の外を眺める
   for (const a of actors) a.poses = seatedPoses(a.ch, a.table - a.at[1]);
@@ -287,11 +296,10 @@ export class Cutscene {
       else { const fp = a.base === 'walk' ? 'stand' : a.base === 'bath' ? 'bath' : a.base === 'floor' ? 'floor' : 'sit'; for (const e of ['neutral', 'smile', 'talk', 'blink', 'eat', 'laugh']) { const g = new GB(); buildFace(g, a.ch, e, fp); a.face[e] = R.mesh(g.build()); } }
     }
     // 字幕（人数・季節・場面別のセリフを場面全体に割り振る）
-    this.lines = lines(kind, season, info.party.length, info.party, info.fac);
+    this.lines = lines(kind, season, info.party.length, info.party, info.fac, info.meal);
     // 修正111：到着が夕方・夜なら、その時間帯らしいひと言を最後に添える（空と照明は render で切り替え）
     this.tod = info.tod === 'evening' || info.tod === 'night' ? info.tod : 'day';
-    if (kind === 'ending' && this.tod !== 'day') { const who = info.party.length > 1 ? info.party[1].role : 'driver', kid = info.party.length > 1 && info.party[1].ch && info.party[1].ch.age === 'child';
-      this.lines.push([who, this.tod === 'evening' ? (kid ? 'みて！そらがオレンジいろ！' : '夕焼けがきれい…いい時間に着いたね') : (kid ? 'よるになっちゃったね。ほしがみえる！' : '夜の景色もすてきだね。無事に着いてよかった')]); }
+    if (kind === 'ending' && this.tod !== 'day' && info.party.length > 1) { const p = info.party[1]; this.lines.push([p.role, MOVIE[this.tod][voiceKey(p.ch)][0]]); } // 修正111・118：夕方・夜の到着のひと言
     this.total = this.sc.shots.reduce((t, s) => t + s.d, 0);
     const per = (this.total - 1.5) / this.lines.length; this.subs = this.lines.map((l, i) => ({ t0: 0.8 + i * per, t1: 0.8 + (i + 1) * per - 0.3, role: l[0], text: l[1] }));
     const $ = ctx.$; this.ui = $('cut'); this.ui.classList.add('on'); $('cutTitle').textContent = this.sc.title; $('cutTitle').classList.add('on'); setTimeout(() => $('cutTitle').classList.remove('on'), 2600);
