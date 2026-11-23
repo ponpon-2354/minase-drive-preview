@@ -68,15 +68,24 @@ select,input[type=range]{width:100%;font:inherit;font-size:16px;min-height:36px;
 #toast{position:absolute;left:50%;top:22%;transform:translateX(-50%);background:var(--pan);padding:8px 14px;border-radius:4px;font-weight:700;opacity:0;transition:opacity .3s;white-space:nowrap}
 #toast.on{opacity:1}
 #trainBan{position:absolute;left:50%;top:calc(22% + 42px);transform:translateX(-50%);background:rgba(20,70,45,.88);border:1px solid rgba(255,255,255,.25);padding:6px 12px;border-radius:4px;font-weight:700;font-size:13px;white-space:nowrap;display:none}#trainBan.on{display:block}
-/* v0.8.0 長距離：曲名チップ（押すと次の曲）、次の曲ボタン、同乗者のセリフ・ラジオ案内の字幕 */
-#ldSong{position:absolute;right:max(10px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + 46px + 132px);background:rgba(10,14,20,.66);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700;display:none;pointer-events:auto;cursor:pointer;max-width:46vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-body.pc #ldSong{top:calc(max(10px,env(safe-area-inset-top)) + 132px)}
-body.ld #ldSong{display:block}#ldSong.off{opacity:.6}#ldSong.flash{animation:ldsf .5s}@keyframes ldsf{0%{background:#ffb63a;color:#000}100%{}}
-#tNext{display:none}body.ld #tNext{display:flex}
+/* v0.8.0 長距離：音楽の操作（曲名チップ＝押すと次の曲、⏭ 次の曲、BGM ON/OFF）を1か所にまとめる（修正116：運転操作のエリアには置かない） */
+#ldMus{position:absolute;right:max(10px,env(safe-area-inset-right));top:calc(max(10px,env(safe-area-inset-top)) + 132px);display:none;gap:5px;align-items:center;pointer-events:auto}
+body.ld #ldMus{display:flex}
+#ldSong{background:rgba(10,14,20,.66);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer;max-width:30vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;touch-action:none}
+#ldSong.off{opacity:.6}#ldSong.flash{animation:ldsf .5s}@keyframes ldsf{0%{background:#ffb63a;color:#000}100%{}}
+#ldMus .mb{background:rgba(10,14,20,.66);border:1px solid rgba(255,255,255,.25);border-radius:12px;min-width:34px;height:26px;padding:0 8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none}
+#ldMus .mb.on{border-color:var(--amb);color:var(--amb)}
 #ldSub{position:absolute;left:50%;bottom:calc(150px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:min(640px,70vw);background:rgba(0,0,0,.55);border-radius:6px;padding:6px 12px;font-size:15px;line-height:1.4;text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 1px 2px #000}
 body.pc #ldSub{bottom:calc(70px + env(safe-area-inset-bottom))}
-#ldSub.on{opacity:1}#ldSub b{display:block;font-size:11px;color:#ffd37a;font-weight:700}#ldSub.radio{background:rgba(20,40,70,.7)}#ldSub.radio b{color:#8fd0ff}
-@media (max-height:500px){#ldSub{font-size:12.5px;bottom:calc(36% + env(safe-area-inset-bottom));max-width:50vw;padding:4px 9px} body.ld:not(.pc) #ldSong{top:auto;bottom:calc(44% + env(safe-area-inset-bottom));right:auto;left:50%;transform:translateX(-50%);font-size:11px}}
+#ldSub.on{opacity:1}#ldSub b{display:block;font-size:11px;color:#ffd37a;font-weight:700}#ldSub.radio{background:rgba(20,40,70,.7)}#ldSub.radio b{color:#8fd0ff}#ldSub.nav{background:rgba(15,60,50,.75)}#ldSub.nav b{color:#7fe8c8}
+/* 修正116：長距離のタッチ画面では、上段のボタンは 視点・ライト・ホーン・II に絞る（BGM・次の曲は音楽のまとまりへ、地図はポーズメニューへ）。HUD の運行情報は左上（ミニマップの右）、音楽はその右上 */
+body.ld #tBgm,body.ld #tMap{display:none}
+body.cock #ldSub{bottom:calc(36% + env(safe-area-inset-bottom))} /* 修正114：運転者視点では字幕をメーターに重ねない */
+body.ld:not(.pc) #toast{top:calc(max(8px,env(safe-area-inset-top)) + 96px);bottom:auto;max-width:44vw;white-space:normal;text-align:center;font-size:13px} /* 修正116：長距離の通知は上段の下へ（ハンドル・ブレーキと重ねない） */
+@media (max-height:380px){#mm{width:112px;height:112px}} /* 修正116：高さ360px級の横画面で、ミニマップとウインカー ◁ が重ならないように */
+body.ld:not(.pc) #ldMus{top:calc(max(8px,env(safe-area-inset-top)) + 48px)}
+@media (max-height:500px){#ldSub{font-size:12.5px;bottom:calc(36% + env(safe-area-inset-bottom));max-width:50vw;padding:4px 9px}
+ body.ld:not(.pc) #ldSong{max-width:22vw;font-size:11px}}
 /* タッチ操作（修正88：L字の2段レイアウト。最下段＝◀ ▶（左）とアクセル（右・縦スライド）、その上＝ブレーキとD/R。ボタン類は最上部へ） */
 #touch{position:fixed;inset:0;display:none;pointer-events:none;--sl:max(12px,env(safe-area-inset-left));--sr:max(12px,env(safe-area-inset-right));--sb:calc(14px + env(safe-area-inset-bottom));--st:max(8px,env(safe-area-inset-top))}
 #touch.on{display:block}
@@ -86,6 +95,12 @@ body.pc #ldSub{bottom:calc(70px + env(safe-area-inset-bottom))}
 #bL{left:var(--sl)}#bR{left:calc(var(--sl) + 94px)}
 #bB{left:var(--sl);bottom:calc(var(--sb) + 86px);width:112px;height:72px;font-size:17px}
 #bDR{left:calc(var(--sl) + 122px);bottom:calc(var(--sb) + 86px);width:56px;height:72px;font-size:24px}
+/* 修正119：ハンドル操作（既定）。左下にハンドル、その右にブレーキと D/R。ボタン操作のときは従来の ◀ ▶（修正88の L 字） */
+#wheel{display:none;left:var(--sl);bottom:var(--sb);width:150px;height:150px;border-radius:50%;background:rgba(20,22,28,.35);padding:4px}
+#wheel svg{pointer-events:none;transition:none}
+body.whl #wheel{display:flex}body.whl #bL,body.whl #bR{display:none}
+body.whl #bB{left:calc(var(--sl) + 160px);bottom:var(--sb);width:100px;height:72px}
+body.whl #bDR{left:calc(var(--sl) + 160px);bottom:calc(var(--sb) + 82px);width:56px;height:62px}
 #bDR.rev{background:rgba(220,40,40,.85);border-color:#fff;box-shadow:0 0 14px rgba(255,60,60,.9)}
 #bA{right:var(--sr);bottom:var(--sb);width:86px;height:min(42vh,200px);flex-direction:column;justify-content:flex-start;padding-top:10px;overflow:hidden;
   background:linear-gradient(0deg,rgba(40,140,80,.45) 0,rgba(40,140,80,.45) 38%,rgba(20,22,28,.45) 38%)}
@@ -97,7 +112,7 @@ body.pc #ldSub{bottom:calc(70px + env(safe-area-inset-bottom))}
 #bA .kpw{position:absolute;top:30px;left:8px;right:8px;height:7px;border-radius:4px;background:rgba(255,255,255,.18);opacity:0;transition:opacity .15s;pointer-events:none}
 #bA .kp{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:4px;background:#5fe08a}
 #bA .kpt{position:absolute;top:40px;left:0;right:0;text-align:center;font-size:10px;color:#cfe;opacity:0;pointer-events:none}
-#bA.arm .kpw,#bA.arm .kpt{opacity:1}
+#bA.arm .kpw,#bA.arm .kpt{opacity:1}#bA.accing .kpt{opacity:1;color:#ffd37a}#bA.accing .kp{width:0!important}
 #bA.keep .kpw{opacity:1}#bA.keep .kp{width:100%!important}
 #bA.flash{animation:kflash .7s ease-out}
 @keyframes kflash{0%{background:rgba(95,224,138,.85)}100%{background:rgba(0,0,0,.35)}}
@@ -129,14 +144,14 @@ body.pc #spd{right:max(14px,env(safe-area-inset-right))}
 .ldt{width:100%;border-collapse:collapse;font-size:14px;margin:6px 0}.ldt th{text-align:left;color:var(--amb);font-weight:700;padding:4px 8px 4px 0;white-space:nowrap;vertical-align:top;width:6.5em}.ldt td{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 #ldhud{position:absolute;right:max(10px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + 46px);background:rgba(10,14,20,.72);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;display:none;min-width:220px;max-width:46vw;text-shadow:0 1px 2px #000}
 body.pc #ldhud{top:max(10px,env(safe-area-inset-top))}
-body.ld #ldhud{display:block}body.ld #info{display:none}
+body.ld #ldhud{display:block}body.ld:not(.pc) #ldhud{left:calc(max(10px,env(safe-area-inset-left)) + 140px);right:auto;transform:none;top:max(6px,env(safe-area-inset-top));width:min(250px,31vw);min-width:0;max-width:none} /* 修正116 */body.ld #info{display:none}
 #ldhud .r{display:flex;justify-content:space-between;gap:10px}#ldhud .r b{color:var(--amb);font-weight:700}#ldhud .big{font-size:17px;font-weight:800}
 #ldhud .fat{height:7px;background:rgba(255,255,255,.15);border-radius:4px;overflow:hidden;margin:2px 0}#ldhud .fat i{display:block;height:100%;width:0;background:#7fe08a}
 #ldhud.warn{border-color:#ff8a3a}#ldhud.alert{border-color:#ff4b3a;animation:ldal 1s infinite}#ldhud.alert #ldFat{color:#ff6a5a;font-weight:900;font-size:14px}
 /* スマホ横画面：HUDを上中央（ミニマップとウインカーの間）に小さく、案内（トースト）はその下へ */
-@media (max-height:500px){body.ld:not(.pc) #ldhud{left:50%;right:auto;transform:translateX(-50%);top:calc(max(6px,env(safe-area-inset-top)) + 40px);font-size:10.5px;line-height:1.22;padding:3px 7px;min-width:0;width:min(250px,40vw);max-width:none}
+@media (max-height:500px){body.ld:not(.pc) #ldhud{font-size:10.5px;line-height:1.22;padding:3px 7px}
  body.ld:not(.pc) #ldhud .big{font-size:14px} body.ld:not(.pc) #ldhud .fat{height:5px;margin:1px 0}
- body.ld:not(.pc) #toast{top:auto;bottom:calc(30% + env(safe-area-inset-bottom));white-space:normal;max-width:48vw;text-align:center;font-size:13px}}
+}
 @keyframes ldal{50%{box-shadow:0 0 14px rgba(255,75,58,.9)}}
 @media (orientation:portrait){#ldhud{top:calc(max(8px,env(safe-area-inset-top)) + 142px);max-width:60vw}}
 #cut{position:fixed;inset:0;display:none;z-index:8;pointer-events:none}#cut.on{display:block}
@@ -169,7 +184,7 @@ body.ld #ldhud{display:block}body.ld #info{display:none}
     <button id="mSettings">SETTINGS</button>
     <button id="mHow">HOW TO PLAY</button>
   </div>
-  <div class="note">開発版 v0.7.0（市街地散策：約4km四方 ／ 長距離ドライブ：400km・四季4コース）／ 横画面推奨</div>
+  <div class="note">開発版 v0.8.0（市街地散策：約4km四方 ／ 長距離ドライブ：400km・四季4コース）／ 横画面推奨</div>
 </div>
 
 <div id="select" class="scr">
@@ -205,7 +220,10 @@ body.ld #ldhud{display:block}body.ld #info{display:none}
     <div class="row"><label for="sBgm">BGM</label><select id="sBgm"><option value="auto">自動（場所・時間・天気）</option><option value="pop">Minase City Pop（昼の街）</option><option value="night">Midnight Bypass（夜）</option><option value="rain">Rainy Window（雨）</option><option value="euro">Minase Touge Beat（峠）</option><option value="country">Sunday Countryside（田園）</option><option value="off">OFF</option></select></div>
     <div class="row"><label for="sLdBgm">長距離ドライブのBGM</label><select id="sLdBgm"><option value="1">ON（季節の曲をシャッフル再生）</option><option value="0">OFF（エンジン音・環境音のみ）</option></select></div>
     <div class="row"><label for="sLdTalk">同乗者のセリフ（長距離）</label><select id="sLdTalk"><option value="1">ON</option><option value="0">OFF</option></select></div>
-    <div class="row"><label for="sLdRadio">ラジオ風の案内（長距離）</label><select id="sLdRadio"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sLdNav">ナビの観光案内（長距離）</label><select id="sLdNav"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sLdRadio">ラジオのトーク（長距離）</label><select id="sLdRadio"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sLdVol">長距離ドライブのBGM音量</label><input type="range" id="sLdVol" min="0" max="1" step="0.05"></div>
+    <div class="row"><label for="sSteer">スマホのハンドル操作</label><select id="sSteer"><option value="wheel">ハンドル（回して操作）</option><option value="buttons">ボタン（◀ ▶）</option></select></div>
     <div class="row"><label for="sBgmVol">BGM音量</label><input type="range" id="sBgmVol" min="0" max="1" step="0.05"></div>
     <div class="row"><label for="sVol">効果音量</label><input type="range" id="sVol" min="0" max="1" step="0.05"></div>
     <div class="row"><label for="sAssist">運転アシスト</label><select id="sAssist"><option value="1">ON（横滑りを抑える）</option><option value="0">OFF</option></select></div>
@@ -235,6 +253,7 @@ body.ld #ldhud{display:block}body.ld #info{display:none}
     <h2>MENU</h2>
     <div class="menu">
       <button id="pResume" class="pri">ドライブに戻る</button>
+      <button id="pMap">地図</button>
       <button id="pVehicle">車両カラー変更</button>
       <button id="pSettings">設定</button>
       <button id="pSave">セーブ</button>
@@ -263,7 +282,7 @@ body.ld #ldhud{display:block}body.ld #info{display:none}
     <div class="r"><span>次の休憩</span><b id="ldNext"></b></div></div>
   <div id="iAeb">ブレーキ!</div>
   <div id="dbg"></div>
-  <div id="toast"></div><div id="trainBan"></div><div id="ldSong" title="次の曲（B キー）"></div><div id="ldSub"></div>
+  <div id="toast"></div><div id="trainBan"></div><div id="ldMus"><div id="ldSong" title="次の曲（B キー）"></div><div class="mb" id="ldNextB" title="次の曲（B キー）">⏭</div><div class="mb" id="ldBgmB" title="BGM ON/OFF（M キー）">BGM</div></div><div id="ldSub"></div>
 </div>
 <div id="map" class="scr"><canvas id="mapC"></canvas><div class="mapbar"><span id="mapMsg">地図をドラッグで移動・ピンチ/ホイールで拡大。タップで目的地を設定</span><button id="mapClear">目的地を消す</button><button id="mapClose" class="pri">閉じる</button></div></div>
 
@@ -271,10 +290,10 @@ body.ld #ldhud{display:block}body.ld #info{display:none}
   <div class="tb" id="bL">◀</div><div class="tb" id="bR">▶</div>
   <div class="tb" id="bB">ブレーキ</div><div class="tb" id="bDR">D</div>
   <div class="tb" id="bA"><i class="lv" id="bAlv"></i><span>アクセル</span><i class="kpw"><i class="kp" id="bAkp"></i></i><span class="kpt">指を止めるとキープ</span><i class="eco2"></i><span class="eco">ECO</span></div>
-  <div class="tb" id="tWL">◁</div><div class="tb" id="tWR">▷</div>
-  <div class="tops"><div class="tb" id="tCam">視点</div><div class="tb" id="tLight">ライト</div><div class="tb" id="tHorn">ホーン</div><div class="tb" id="tBgm">BGM</div><div class="tb" id="tNext">次の曲</div><div class="tb" id="tMap">地図</div><div class="tb" id="tMenu">II</div></div>
+  <div class="tb" id="wheel"><svg id="wheelImg" viewBox="-50 -50 100 100" width="100%" height="100%"><circle r="44" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="9"/><circle r="44" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="2"/><path d="M-40,6 L-12,12 L-8,30 L8,30 L12,12 L40,6" fill="none" stroke="rgba(255,255,255,.8)" stroke-width="8" stroke-linejoin="round"/><circle r="11" fill="rgba(255,255,255,.75)"/><rect x="-4" y="-50" width="8" height="12" rx="2" fill="#ffb63a"/></svg></div><div class="tb" id="tWL">◁</div><div class="tb" id="tWR">▷</div>
+  <div class="tops"><div class="tb" id="tCam">視点</div><div class="tb" id="tLight">ライト</div><div class="tb" id="tHorn">ホーン</div><div class="tb" id="tBgm">BGM</div><div class="tb" id="tMap">地図</div><div class="tb" id="tMenu">II</div></div>
 </div>
 
-<script type="module" src="src/main.js?v=0.7.0"></script>
+<script type="module" src="src/main.js?v=0.8.0"></script>
 </body>
 </html>
