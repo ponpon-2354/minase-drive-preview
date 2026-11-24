@@ -1,7 +1,7 @@
 // プレイヤー車両（ミライース）の物理：自転車モデル＋タイヤ横力（摩擦円）＋CVT
 // v0.3：後退旋回の修正、クリープ／坂道、壁でのスライド、路面種別、スタック自動復帰
-import { clamp } from './math.js?v=0.8.0';
-import { MIRA } from './carmodels.js?v=0.8.0';
+import { clamp } from './math.js?v=0.9.0';
+import { MIRA } from './carmodels.js?v=0.9.0';
 
 // 路面種別：0=草地・畑 1=舗装 2=歩道 3=砂利・敷地
 // 路面：草地・砂利は少し滑りやすく、アクセルは約50km/hで効かなくなる（ブレーキはかけない）。住宅街は zoneCap（約70km/h）。制限速度リミッターは前進のみ
@@ -23,6 +23,16 @@ export class Player {
     this.onReset && this.onReset(); // 表示（ギア表示・Rボタン）を実状態に合わせる
   }
   // クリープ用：進む向き（D=前、R=後ろ）のバンパーから1.5m以内に車・壁・柱があるか
+  // 修正127：誤発進抑制用。frontBlocked と同じ方式（city.query の箱・NPC車）で、進行方向 maxD m 以内を調べる
+  obstacleWithin(dir, npcs, maxD) {
+    const c = Math.cos(this.yaw), s = Math.sin(this.yaw), fx = s * dir, fz = c * dir, hl = MIRA.L / 2;
+    for (let d = 0.25; d <= maxD + 1e-6; d += 0.25) for (const lx of [-0.6, 0, 0.6]) {
+      const px = this.x + fx * (hl + d) + c * lx, pz = this.z + fz * (hl + d) - s * lx;
+      if (this.city && this.city.query) for (const b of this.city.query(px, pz, 1)) { if (b.kind === 'x' || this.y + 1.3 < b.y0 || this.y + 0.35 > b.y1) continue; if (b.nb != null && this.city.shopCarsOn && !this.city.shopCarsOn(b.nb, this.hour ?? 12)) continue; if (px > b.x0 && px < b.x1 && pz > b.z0 && pz < b.z1) return true; }
+      for (const n of npcs || []) { const dx = px - n.x, dz = pz - n.z; if (dx * dx + dz * dz > 100) continue; const cy = Math.cos(n.yaw), sy = Math.sin(n.yaw), ll = dx * sy + dz * cy, lt = dx * cy - dz * sy; if (Math.abs(ll) < n.m.L / 2 + 0.1 && Math.abs(lt) < n.m.W / 2 + 0.1) return true; }
+    }
+    return false;
+  }
   frontBlocked(dir, npcs) {
     const c = Math.cos(this.yaw), s = Math.sin(this.yaw), fx = s * dir, fz = c * dir, hl = MIRA.L / 2;
     for (const d of [0.4, 1.0, 1.5]) for (const lx of [-0.6, 0, 0.6]) {
@@ -281,5 +291,122 @@ export class Player {
     }
     if ((nx || nz) && inp.thr > 0.3 && Math.abs(this.steer) > 0.05) { const sg = Math.sign(this.steer) * (this.gear === 'R' ? -1 : 1); if (Math.abs(this.w) < 0.6) this.w = sg * 0.6; this.wallPivot = 0.15; }
     void depth;
+  }
+}
+
+// ===== 修正125〜127 スマートアシスト（DOM・グローバルに依存しない判定器。世界の情報は main.js の saWorld() が引数で渡す） =====
+// 座標の約束：前方 = [sin yaw, cos yaw]、+x 側が進行方向の左（左側通行。yaw が増える＝左旋回、player.w>0・steer>0 が左）
+// w = { enabled, time, cars:[{x,z,yaw,v,m:{L,W,cat}}], peds:[{x,z,yaw,v}], wink(-1左/+1右/0),
+//       lane(p) → null | { offset（車線中心からの横偏差、+が左）, half（車線の半幅）, rdw:{'1':bool,'-1':bool}（その側の線の外が路側か）, intersection },
+//       lead → null | { ref（先行車のオブジェクト）, gap }, blocked(dir, dist) → bool }
+// 開発用の仮対象 this.targets（= G.saTargets）は自動では動かさない（テスト側が毎フレーム位置を更新する）。各要素に最小バンパー間距離 minGap を記録する
+export const SA_CFG = { warnTTC: 2.6, brakeTTC: 1.8, fullTTC: 1.0, turnTTC: 3.5, carWarnMax: 100, carBrakeMax: 80, pedMax: 80, minKmh: 4, closeMin: 0.8, ldwKmh: 60, swayAmp: 0.3, swayWin: 8, swayFlips: 3, leadMove: 3, leadGap: 15, pedalKmh: 10, pedalThr: 0.7, holdT: 2.5 };
+const OWN_HL = 1.6975, OWN_HW = 0.7375, G_DEC = 0.75 * 9.81;
+export class SmartAssist {
+  constructor() {
+    this.cnt = { fcwWarn: 0, aebBrake: 0, turnWarn: 0, pedalSupp: 0, ldw: 0, rdw: 0, sway: 0, leadGo: 0 };
+    this.log = []; this.targets = []; this.reset();
+  }
+  reset() {
+    this.state = { kind: '', ttc: 99, target: '', brake: 0, thr: null, off: false };
+    this.active = {}; this.prevWink = 0; this.winkOffT = 9; this.flips = []; this.swaySide = 0; this.prevOff = null; this.latV = 0; this.lead = null;
+    this.brakeOn = false; this.brakeT = 0; this.stopT = 0; this.thrUp = false; this.clearT = 0; this.leadT = 0;
+  }
+  _event(kind, p, target = '', ttc = 0, now = 0) {
+    if (!this.active[kind]) { this.cnt[kind]++; const q = { t: +now.toFixed(2), kind, kmh: Math.round(Math.abs(p.vx) * 3.6), target, ttc: +(+ttc).toFixed(2) }; this.log.push(q); if (this.log.length > 500) this.log.shift(); if (typeof console !== 'undefined') console.info('[SmartAssist]', JSON.stringify(q)); }
+    this.active[kind] = true;
+  }
+  _clear(kind) { this.active[kind] = false; }
+  // 衝突予測：自車は今の速度とヨーレート（なければ操舵角から）で円弧、対象は等速直線。0.05秒刻みで 4 秒先まで、
+  //  自車の前方の帯（車幅＋左右20cm、前端から40cmまで）に対象の外形（向きを考慮した半長・半幅）が入る最初の時刻を TTC とする。
+  //  進路外（カーブの外・対向車線・路側）の対象は帯に入らないので除外される
+  predict(p, o, dir) {
+    const v = Math.abs(p.vx) * dir, yr = Math.abs(p.w || 0) > 1e-3 ? p.w : (p.steer ? v * Math.tan(p.steer) / 2.455 : 0);
+    const ov = o.v || 0, oyaw = o.yaw || 0, ovx = ov * Math.sin(oyaw), ovz = ov * Math.cos(oyaw), L = o.L, W = o.W;
+    for (let t = 0; t <= 4.0001; t += 0.05) {
+      let ex, ez; const yaw = p.yaw + yr * t;
+      if (Math.abs(yr) < 1e-3) { ex = p.x + Math.sin(p.yaw) * v * t; ez = p.z + Math.cos(p.yaw) * v * t; }
+      else { ex = p.x + v / yr * (Math.cos(p.yaw) - Math.cos(yaw)); ez = p.z + v / yr * (Math.sin(yaw) - Math.sin(p.yaw)); }
+      const fx = Math.sin(yaw) * dir, fz = Math.cos(yaw) * dir, rx = o.x + ovx * t - ex, rz = o.z + ovz * t - ez;
+      const along = rx * fx + rz * fz, lat = rx * fz - rz * fx, dy = oyaw - yaw, c = Math.abs(Math.cos(dy)), s = Math.abs(Math.sin(dy));
+      const ha = c * L / 2 + s * W / 2, hl = s * L / 2 + c * W / 2;
+      if (along > 0 && along - ha < OWN_HL + 0.4 && Math.abs(lat) - hl < OWN_HW + 0.2) {
+        const f0x = Math.sin(p.yaw) * dir, f0z = Math.cos(p.yaw) * dir, closing = Math.abs(p.vx) - (ovx * f0x + ovz * f0z);
+        const gap = Math.max(0.05, (o.x - p.x) * f0x + (o.z - p.z) * f0z - ha - OWN_HL);
+        return { t, gap, closing, o };
+      }
+    }
+    return null;
+  }
+  update(p, w, dt) {
+    const C = SA_CFG, s = this.state = { kind: '', ttc: 99, target: '', brake: 0, thr: null, off: !w.enabled };
+    if (!w.enabled) { const keep = this.targets; this.reset(); this.targets = keep; this.state.off = true; return this.state; } // OFF：判定自体を走らせない
+    const now = w.time || 0, speed = Math.abs(p.vx), kmh = speed * 3.6, dir = p.gear === 'R' ? -1 : 1, inp = p.input || { thr: 0, brk: 0 };
+    // ---- 修正126 衝突警報・衝突回避支援ブレーキ ----
+    const objs = [];
+    for (const c of w.cars || []) objs.push({ x: c.x, z: c.z, yaw: c.yaw, v: c.v, L: c.m?.L || 4.4, W: c.m?.W || 1.8, kind: c.m?.cat === 'bike' ? 'cycle' : c.m?.cat === 'moto' ? 'bike' : 'car' });
+    for (const q of w.peds || []) objs.push({ x: q.x, z: q.z, yaw: q.yaw, v: q.v || 0, L: 0.5, W: 0.5, kind: 'ped' });
+    for (const q of this.targets) { if (!q) continue; const L = q.L || (q.kind === 'ped' ? 0.5 : 4.4), W = q.W || (q.kind === 'ped' ? 0.5 : 1.8); objs.push({ ...q, L, W, ref: q });
+      const f0x = Math.sin(p.yaw), f0z = Math.cos(p.yaw), al = (q.x - p.x) * f0x + (q.z - p.z) * f0z, lt = Math.abs((q.x - p.x) * f0z - (q.z - p.z) * f0x);
+      const g = Math.max(Math.abs(al) - L / 2 - OWN_HL, lt - W / 2 - OWN_HW); q.minGap = Math.min(q.minGap ?? Infinity, +g.toFixed(3)); } // 仮対象との最小距離（バンパー間／側面間の大きい方。≦0 なら接触）
+    let best = null;
+    if (speed > 0.3) for (const o of objs) { const dx = o.x - p.x, dz = o.z - p.z; if (dx * dx + dz * dz > 4900) continue; const h = this.predict(p, o, dir); if (h && h.closing > C.closeMin && (!best || h.t < best.t)) best = h; }
+    const kind = best ? best.o.kind : '', vru = kind === 'ped' || kind === 'cycle';
+    const reqDec = best ? speed * speed / (2 * best.gap) : 0, drvDec = (inp.brk || 0) * G_DEC;
+    const driverOK = inp.brk > 0.1 && drvDec >= reqDec * 0.9; // ドライバーが必要な減速度を満たすブレーキを踏んでいる
+    const warnMax = vru ? C.pedMax : C.carWarnMax, brakeMax = vru ? C.pedMax : C.carBrakeMax;
+    const fcw = best && dir > 0 && kmh >= C.minKmh && kmh <= warnMax && best.t < C.warnTTC && !driverOK;
+    if (fcw) { this._event('fcwWarn', p, kind, best.t, now); s.kind = '前方注意'; s.target = kind; s.ttc = best.t; } else this._clear('fcwWarn');
+    // 右折時（右ウインカー、または低速で右へ切り始め）：対向直進車・横断者が予測円弧と交わる
+    const rightTurn = dir > 0 && kmh <= 40 && (w.wink > 0 || (kmh < 25 && ((p.w || 0) < -0.08 || (p.steer || 0) < -0.12)));
+    if (best && rightTurn && kmh >= C.minKmh && best.t < C.turnTTC) { this._event('turnWarn', p, kind, best.t, now); if (!s.kind) { s.kind = '前方注意'; s.target = kind; s.ttc = best.t; } } else this._clear('turnWarn');
+    // 自動ブレーキ：TTC が brakeTTC 未満で、作動速度域内、ドライバーのブレーキが不足。必要減速度が最大の1.3倍を超える（間に合わない）ときは警報のみ
+    if (!this.brakeOn && fcw && best.t < C.brakeTTC && kmh <= brakeMax && reqDec < G_DEC * 1.3) { this.brakeOn = true; this.brakeT = 0; this.stopT = 0; this.thrUp = false; this.clearT = 0; this._event('aebBrake', p, kind, best.t, now); }
+    if (this.brakeOn) {
+      this.brakeT += dt;
+      if (speed < 0.15) { // 停止後は holdT 秒保持。いったんアクセルを離してから踏み直したら解除
+        this.stopT += dt; s.brake = 1; if (inp.thr < 0.05) this.thrUp = true;
+        if (this.stopT > C.holdT || (this.thrUp && inp.thr > 0.15)) this.brakeOn = false;
+      } else {
+        // 段階：最初は必要減速度に見合う中程度、衝突直前（TTC<fullTTC）や必要減速度が大きいときは最大
+        const need = best ? reqDec / G_DEC : 0; s.brake = !best ? 0.6 : best.t < C.fullTTC ? 1 : clamp(need * 1.25 + 0.15, 0.45, 1);
+        if (!best) { this.clearT += dt; if (this.clearT > 0.6) this.brakeOn = false; } else this.clearT = 0; // 対象が進路から外れたら解除
+      }
+      if (this.brakeOn) s.kind = 'ブレーキ!'; else this._clear('aebBrake');
+    }
+    if (!this.brakeOn) this._clear('aebBrake');
+    // ---- 修正127-1 誤発進抑制（前方 D・後方 R）：10km/h以下で進行方向 約4m（R 約3m）以内に障害物、アクセルを強く踏んだら出力を絞る ----
+    const strong = inp.thr >= C.pedalThr;
+    if (kmh <= C.pedalKmh && strong && w.blocked && w.blocked(dir, dir < 0 ? 3 : 4)) { s.thr = 0.1; if (speed > 0.8) s.brake = Math.max(s.brake, 0.4); if (!s.kind) s.kind = '誤発進抑制'; this._event('pedalSupp', p, dir < 0 ? 'rear' : 'front', 0, now); }
+    else if (!strong || kmh > C.pedalKmh + 2) this._clear('pedalSupp');
+    // ---- 修正127-2/3 車線逸脱・路側逸脱・ふらつき（車線中心からの横偏差 offset とその変化率） ----
+    if (w.wink !== this.prevWink) { this.prevWink = w.wink; this.winkOffT = 0; } else this.winkOffT += dt;
+    const lane = w.lane ? w.lane(p) : null;
+    if (lane && this.prevOff != null && Math.abs(lane.offset - this.prevOff) < 0.5 && dt > 0) this.latV += ((lane.offset - this.prevOff) / dt - this.latV) * Math.min(1, dt * 6);
+    else { this.latV = 0; if (lane && this.prevOff != null) { this.flips = []; this.swaySide = 0; } } // 車線が切り替わった（車線変更の完了）ら、ふらつきの履歴もリセット
+    this.prevOff = lane ? lane.offset : null;
+    const noWink = !w.wink && this.winkOffT > 2, laneOK = lane && !lane.intersection && Math.abs(lane.offset) < lane.half + 0.5 && dir > 0;
+    let dep = '';
+    if (laneOK && kmh >= C.ldwKmh && noWink && Math.abs(this.latV) > 0.08) {
+      const side = Math.sign(this.latV), edge = lane.half - OWN_HW - lane.offset * side, tC = edge / Math.abs(this.latV); // 車体の側面が線に達するまでの距離・時間
+      if (edge < 0.45 && tC < 1.0) { dep = lane.rdw && lane.rdw[side] ? 'rdw' : 'ldw'; this._event(dep, p, side > 0 ? 'left' : 'right', tC, now); s.kind = s.kind || (dep === 'rdw' ? '路側逸脱' : '車線逸脱'); }
+    }
+    if (dep !== 'ldw') this._clear('ldw'); if (dep !== 'rdw') this._clear('rdw');
+    // ふらつき：車線中心基準の横偏差が ±0.3m を超える側が入れ替わった時刻（＝左右へのぶれ）を数え、8秒以内に3回以上で警報。
+    //  車線中心基準なのでカーブの曲率は差し引かれる。1回の車線変更は「片側へ寄る→車線が切り替わる」で履歴がリセットされ、反転は数えない。ウインカー中・直後は数えない
+    if (laneOK && kmh >= C.ldwKmh && noWink) {
+      const sd = lane.offset > C.swayAmp ? 1 : lane.offset < -C.swayAmp ? -1 : 0;
+      if (sd && sd !== this.swaySide) { if (this.swaySide) this.flips.push(now); this.swaySide = sd; }
+      while (this.flips.length && now - this.flips[0] > C.swayWin) this.flips.shift();
+      if (this.flips.length >= C.swayFlips) { this._event('sway', p, '', 0, now); s.kind = s.kind || 'ふらつき注意 休憩を'; } else this._clear('sway');
+    } else { this.flips = []; this.swaySide = 0; this._clear('sway'); }
+    // ---- 修正127-4 先行車発進お知らせ：ブレーキで停車中（D）、停車時に同じ車線の前方15m以内にいた先行車が3m以上進んでも発進しない ----
+    if (dir > 0 && speed < 0.15 && inp.brk > 0.2 && inp.thr < 0.05) {
+      if (!this.lead && w.lead && w.lead.gap < C.leadGap) this.lead = { ref: w.lead.ref, x: w.lead.ref.x, z: w.lead.ref.z, done: false };
+      if (this.lead && !this.lead.done && Math.hypot(this.lead.ref.x - this.lead.x, this.lead.ref.z - this.lead.z) >= C.leadMove) { this.lead.done = true; this.leadT = 2.5; this._event('leadGo', p, 'lead', 0, now); }
+    } else { this.lead = null; this.leadT = 0; this._clear('leadGo'); }
+    if (this.leadT > 0) { this.leadT -= dt; s.kind = s.kind || '先行車が発進しました'; }
+    s.brake = clamp(s.brake, 0, 1);
+    return s;
   }
 }

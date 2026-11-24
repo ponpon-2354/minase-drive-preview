@@ -1,8 +1,8 @@
 // NPC交通AI：道路ネットワーク（直線・曲線・高低差）追従、IDM車間制御、信号/一時停止、右折待ち、車線変更、
 // 駐車場の入出庫、駅前ロータリーの周回車両
-import { clamp, angDiff, bez, M4 } from './math.js?v=0.8.0';
-import { pickModel, pickColor, plateClass, MODELS, isCommercial } from './carmodels.js?v=0.8.0';
-import { PLATES } from './textures.js?v=0.8.0';
+import { clamp, angDiff, bez, M4 } from './math.js?v=0.9.0';
+import { pickModel, pickColor, plateClass, MODELS, isCommercial } from './carmodels.js?v=0.9.0';
+import { PLATES } from './textures.js?v=0.9.0';
 
 // 運転傾向：速度超過では表現せず、加速度・車間・発進の機敏さで差をつける（目標速度の上限は制限速度）
 const STYLES = [

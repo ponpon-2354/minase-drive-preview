@@ -1,13 +1,13 @@
 // 都市の拡張部分（フェーズ4）：山間部（みなせ峠・トンネル）、地形、バイパス高架、河川と橋、
 // 郊外住宅地・工業団地・郊外ロードサイド・田園・河川敷、鉄道
-import { roadExtras } from './props.js?v=0.8.0';
-import { farmV4, townExtras, shadowsAndFar, cherry, cemetery, farmCenter } from './extras.js?v=0.8.0';
-import { GB } from './geo.js?v=0.8.0';
-import { L } from './textures.js?v=0.8.0';
-import { rng, clamp } from './math.js?v=0.8.0';
-import { pickModel, pickColor, MODELS, pickCommercial, pickPassenger, isCommercial, pickFit } from './carmodels.js?v=0.8.0';
-import { districtsPost } from './districts.js?v=0.8.0';
-import { LINES, XL, BYP_X, bypY, mkSpec, polyInfo, WHITE, YEL, PAL_HOUSE, PAL_ROOF, PAL_WALL } from './city.js?v=0.8.0';
+import { roadExtras } from './props.js?v=0.9.0';
+import { farmV4, townExtras, shadowsAndFar, cherry, cemetery, farmCenter } from './extras.js?v=0.9.0';
+import { GB } from './geo.js?v=0.9.0';
+import { L } from './textures.js?v=0.9.0';
+import { rng, clamp } from './math.js?v=0.9.0';
+import { pickModel, pickColor, MODELS, pickCommercial, pickPassenger, isCommercial, pickFit } from './carmodels.js?v=0.9.0';
+import { districtsPost } from './districts.js?v=0.9.0';
+import { LINES, XL, BYP_X, bypY, mkSpec, polyInfo, WHITE, YEL, PAL_HOUSE, PAL_ROOF, PAL_WALL } from './city.js?v=0.9.0';
 
 const TX0 = -2600, TX1 = 2600, TZ0 = -2600, TZ1 = -1000, TS = 10; // 地形グリッド
 const smooth = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };

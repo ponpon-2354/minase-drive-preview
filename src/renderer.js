@@ -1,6 +1,6 @@
 // 軽量WebGL2レンダラー（PS2風：頂点カラー＋ランバート＋フォグ＋単一スポットライト）
-import { STRIDE } from './geo.js?v=0.8.0';
-import { TS, LAYER_COUNT, buildLayers } from './textures.js?v=0.8.0';
+import { STRIDE } from './geo.js?v=0.9.0';
+import { TS, LAYER_COUNT, buildLayers } from './textures.js?v=0.9.0';
 
 const VS = `#version 300 es
 layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec3 aC;
