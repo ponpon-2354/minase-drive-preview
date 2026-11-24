@@ -48,7 +48,7 @@ select,input[type=range]{width:100%;font:inherit;font-size:16px;min-height:36px;
 #hud.on{display:block}
 #spd{position:absolute;right:calc(max(12px,env(safe-area-inset-right)) + 98px);bottom:calc(14px + env(safe-area-inset-bottom));text-align:right;text-shadow:0 2px 4px #000}
 #spd.rev .v{color:#ff5a4a;text-shadow:0 0 10px rgba(255,60,60,.9)}#spd.eco .v{color:#7dffa6}#spd.eco #rpm i{background:#3fd27a}
-#ind2{display:flex;gap:6px;justify-content:flex-end;margin-top:3px;font-size:11px;font-weight:800}#ind2 b{display:none;padding:1px 5px;border-radius:3px}#ind2 b.on{display:inline-block}#iEco{background:#1f8a4c}#iIS{background:#1c6c9a}#iLim{background:#fff;color:#c0392b;border:2px solid #c0392b;border-radius:9px!important}#iKeep{background:#5a3}#iAc{background:#357}
+#ind2{display:flex;gap:6px;justify-content:flex-end;margin-top:3px;font-size:11px;font-weight:800}#ind2 b{display:none;padding:1px 5px;border-radius:3px}#ind2 b.on{display:inline-block}#iEco{background:#1f8a4c}#iIS{background:#1c6c9a}#iLim{background:#fff;color:#c0392b;border:2px solid #c0392b;border-radius:9px!important}#iKeep{background:#5a3}#iAc{background:#357}#iSaOff{background:#c87818;color:#fff}
 #spd .v{font-size:44px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;color:#fff}
 #spd .u{font-size:12px;color:var(--amb)}
 #rpm{width:130px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;margin:4px 0 0 auto;overflow:hidden}#rpm i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--amb) 75%,#ff4b3a)}
@@ -184,7 +184,7 @@ body.ld #ldhud{display:block}body.ld:not(.pc) #ldhud{left:calc(max(10px,env(safe
     <button id="mSettings">SETTINGS</button>
     <button id="mHow">HOW TO PLAY</button>
   </div>
-  <div class="note">開発版 v0.8.0（市街地散策：約4km四方 ／ 長距離ドライブ：400km・四季4コース）／ 横画面推奨</div>
+  <div class="note">開発版 v0.9.0（市街地散策：約4km四方 ／ 長距離ドライブ：400km・四季4コース）／ 横画面推奨</div>
 </div>
 
 <div id="select" class="scr">
@@ -211,7 +211,7 @@ body.ld #ldhud{display:block}body.ld:not(.pc) #ldhud{left:calc(max(10px,env(safe
     <div class="row note" style="display:block;font-size:11px;opacity:.8">リミッターは前進のときだけ働きます（後退はもともと低速のため対象外）。生活道路は30km/h、農道は40km/h、ほかは道路標識の制限速度。</div>
     <div class="row"><label for="sAc">エアコン</label><select id="sAc"><option value="0">OFF</option><option value="1">ON（わずかに力が落ちる）</option></select></div>
     <div class="row"><label for="sIs">アイドリングストップ</label><select id="sIs"><option value="1">ON</option><option value="0">OFF</option></select></div>
-    <div class="row"><label for="sAeb">衝突被害軽減ブレーキ</label><select id="sAeb"><option value="1">ON</option><option value="0">OFF</option></select></div>
+    <div class="row"><label for="sAeb">スマートアシスト</label><select id="sAeb"><option value="1">ON</option><option value="0">OFF</option></select></div>
     <div class="row"><label for="sAmb">環境音・夕方のチャイム</label><select id="sAmb"><option value="1">ON</option><option value="0">OFF</option></select></div>
     <div class="row"><label for="sAuto">性能自動調整</label><select id="sAuto"><option value="1">ON（重いと台数・解像度を下げる）</option><option value="0">OFF</option></select></div>
     <div class="row"><label for="sDraw">描画距離</label><input type="range" id="sDraw" min="200" max="650" step="10"></div>
@@ -273,7 +273,7 @@ body.ld #ldhud{display:block}body.ld:not(.pc) #ldhud{left:calc(max(10px,env(safe
   <canvas id="mm" width="260" height="260"></canvas>
   <div id="info"><div class="d" id="iDist"></div><div id="iTime"></div></div>
   <div id="spd"><div class="v" id="sV">0</div><div class="u">km/h</div><div id="rpm"><i id="rpmI"></i></div>
-    <div id="ind"><b id="iWL">◀</b><b id="iLight">ライト</b><b id="gear">D</b><b id="iWR">▶</b></div><div id="ind2"><b id="iEco">ECO</b><b id="iIS">A アイドリングストップ</b><b id="iKeep">キープ</b><b id="iLim">LIM</b><b id="iAc">A/C</b></div></div>
+    <div id="ind"><b id="iWL">◀</b><b id="iLight">ライト</b><b id="gear">D</b><b id="iWR">▶</b></div><div id="ind2"><b id="iEco">ECO</b><b id="iIS">A アイドリングストップ</b><b id="iKeep">キープ</b><b id="iLim">LIM</b><b id="iAc">A/C</b><b id="iSaOff">スマアシ OFF</b></div></div>
   <div id="nav"></div>
   <div id="ldhud"><div class="r"><span class="big" id="ldTime">09:00</span><span id="ldWhere"></span></div>
     <div class="r"><span>目的地 <b id="ldDest"></b></span><span>あと <b id="ldRemain"></b></span></div>
@@ -294,6 +294,6 @@ body.ld #ldhud{display:block}body.ld:not(.pc) #ldhud{left:calc(max(10px,env(safe
   <div class="tops"><div class="tb" id="tCam">視点</div><div class="tb" id="tLight">ライト</div><div class="tb" id="tHorn">ホーン</div><div class="tb" id="tBgm">BGM</div><div class="tb" id="tMap">地図</div><div class="tb" id="tMenu">II</div></div>
 </div>
 
-<script type="module" src="src/main.js?v=0.8.0"></script>
+<script type="module" src="src/main.js?v=0.9.0"></script>
 </body>
 </html>
