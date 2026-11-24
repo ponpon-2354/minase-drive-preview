@@ -1,7 +1,7 @@
 // 長距離ドライブモードの画面：設定（季節・人数・同乗者・座席）→ 確認 → 開始、クリア画面
-import { SEASONS } from './ld_world.js?v=0.8.0';
-import { AGE_OPTS, OUTFIT_OPTS, SEAT_OPTS, SEASON_NAMES, CAR_CAPACITY, outfitAllowed, defaultOutfit, seatAllowed } from './passengers.js?v=0.8.0';
-import { hhmm, dur, passengerLabel, outfitName, seatName } from './longdrive.js?v=0.8.0';
+import { SEASONS } from './ld_world.js?v=0.9.0';
+import { AGE_OPTS, OUTFIT_OPTS, SEAT_OPTS, SEASON_NAMES, CAR_CAPACITY, outfitAllowed, defaultOutfit, seatAllowed } from './passengers.js?v=0.9.0';
+import { hhmm, dur, passengerLabel, outfitName, seatName } from './longdrive.js?v=0.9.0';
 
 const SEASON_TEXT = {
   spring: ['桜並木・川沿いの桜・田園・桜の橋・桜のトンネル', '城下町を抜けて、満開の桜ヶ丘城でお花見'],

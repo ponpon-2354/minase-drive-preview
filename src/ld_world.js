@@ -4,11 +4,11 @@
 // 距離と時間の約束（第5章）：ゲーム内の時間は現実の32倍（現実45分＝ゲーム内24時間）。
 // 道路の実距離も 1/32 に縮めて作り、表示する距離は「実距離×32」。時速80kmで走ると表示上も時速80kmで、
 // 本線12,500m（表示400km）を5時間（現実9分22秒）で走り切り、09:00出発なら14:00に着く。
-import { GB } from './geo.js?v=0.8.0';
-import { L, FONT } from './textures.js?v=0.8.0';
-import { City, CH } from './city.js?v=0.8.0';
-import { rng, clamp, lerp } from './math.js?v=0.8.0';
-import { MODELS, pickColor, isCommercial, plateClass } from './carmodels.js?v=0.8.0';
+import { GB } from './geo.js?v=0.9.0';
+import { L, FONT } from './textures.js?v=0.9.0';
+import { City, CH } from './city.js?v=0.9.0';
+import { rng, clamp, lerp } from './math.js?v=0.9.0';
+import { MODELS, pickColor, isCommercial, plateClass } from './carmodels.js?v=0.9.0';
 
 export const DIST_SCALE = 32, TIME_SCALE = 32;
 export const ROUTE_LEN = 12500;   // 出発点 s=0 から目的地の駐車場入口まで（表示400km）
