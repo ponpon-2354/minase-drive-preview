@@ -1,12 +1,12 @@
 // 長距離ドライブモードの進行管理：時刻（現実45分＝ゲーム内24時間）・走行距離・疲労度と連続運転時間・休憩・到着・HUD・ナビ・交通・セーブ
 // 第6章の疲労度：連続運転4時間で90%（休憩が必要）に達するよう、運転中は 90%/240分 の割合で上がり、それ以降も上がり続ける（操作は奪わない）
-import { LongWorld, SEASONS, DIST_SCALE, TIME_SCALE, ROUTE_LEN, LANE_U, FAC_KM } from './ld_world.js?v=0.8.0';
-import { MODELS, pickColor, plateClass, isCommercial } from './carmodels.js?v=0.8.0';
-import { rng, clamp, lerp } from './math.js?v=0.8.0';
-import { GB } from './geo.js?v=0.8.0';
-import { saveLD, clearLD, addClear } from './save.js?v=0.8.0';
-import { SEASON_NAMES, AGE_OPTS, OUTFIT_OPTS, SEAT_OPTS, driverChar } from './passengers.js?v=0.8.0';
-import { LDEvents } from './ld_events.js?v=0.8.0';
+import { LongWorld, SEASONS, DIST_SCALE, TIME_SCALE, ROUTE_LEN, LANE_U, FAC_KM } from './ld_world.js?v=0.9.0';
+import { MODELS, pickColor, plateClass, isCommercial } from './carmodels.js?v=0.9.0';
+import { rng, clamp, lerp } from './math.js?v=0.9.0';
+import { GB } from './geo.js?v=0.9.0';
+import { saveLD, clearLD, addClear } from './save.js?v=0.9.0';
+import { SEASON_NAMES, AGE_OPTS, OUTFIT_OPTS, SEAT_OPTS, driverChar } from './passengers.js?v=0.9.0';
+import { LDEvents } from './ld_events.js?v=0.9.0';
 
 export const FLOW = TIME_SCALE / 60; // ゲーム内の分 / 現実の秒（32分/60秒）
 export const REST_MIN = 45, START_MIN = 9 * 60;
