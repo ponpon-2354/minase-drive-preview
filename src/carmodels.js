@@ -1,8 +1,8 @@
 // 車両モデル：ミライース（プレイヤー）＋NPC 50車種のパラメトリック・ローポリモデル
 // ※実車の正確な再現ではなく、寸法・シルエットを参考にした簡易モデル（仮モデル）。ロゴ・エンブレムは含まない。
-import { GB, hex } from './geo.js?v=0.9.2';
-import { clamp } from './math.js?v=0.9.2';
-import { L } from './textures.js?v=0.9.2';
+import { GB, hex } from './geo.js?v=0.9.3';
+import { clamp } from './math.js?v=0.9.3';
+import { L } from './textures.js?v=0.9.3';
 
 const C = { // 汎用カラー（実車の市販色を参考にした近似色）
   W: ['ホワイト', '#eeeeec'], PW: ['パールホワイト', '#e9e6dc'], S: ['シルバー', '#b4b8bc'], BK: ['ブラック', '#151517'],
@@ -486,7 +486,7 @@ const MIRA_SEC = [
   [-0.9, 0.7375, 0.17, 0.968, 1.497], [-0.4, 0.7375, 0.17, 0.955, 1.5], [-0.30, 0.7375, 0.17, 0.953, 1.4995], [-0.22, 0.7375, 0.17, 0.9518, 1.4987], [0.0, 0.7375, 0.17, 0.947, 1.497], [0.12, 0.7375, 0.17, 0.945, 1.478],
   [0.32, 0.736, 0.17, 0.94, 1.32], [0.52, 0.735, 0.172, 0.935, 1.15], [0.70, 0.733, 0.176, 0.93, 0.99], [0.74, 0.732, 0.178, 0.96, 0.958],
   [1.0, 0.729, 0.185, 0.96, 0.925], [1.25, 0.723, 0.19, 0.96, 0.888], [1.45, 0.71, 0.196, 0.96, 0.855], [1.55, 0.697, 0.2, 0.96, 0.832],
-  [1.6, 0.683, 0.203, 0.96, 0.812], [1.625, 0.672, 0.205, 0.96, 0.75], [1.65, 0.66, 0.207, 0.96, 0.648], [1.675, 0.642, 0.211, 0.96, 0.545], [1.6975, 0.61, 0.218, 0.96, 0.452]
+  [1.6, 0.683, 0.203, 0.96, 0.78], [1.625, 0.672, 0.205, 0.96, 0.69], [1.65, 0.66, 0.207, 0.96, 0.58], [1.675, 0.642, 0.211, 0.96, 0.47], [1.6975, 0.61, 0.218, 0.96, 0.395]
 ];
 function miraSection([z, hw, yb, belt, top]) {
   const t = clamp((top - belt) / (1.5 - belt), 0, 1);
@@ -560,7 +560,8 @@ function buildMiraHeadlights(gb, rows) {
   //    頂点 HP（反時計回り）：内側上 → 内側下（内側の辺はやや寝た縦の辺、厚み約13cm）→ 下辺（ほぼ水平の長い直線）→ 外側下の斜辺
   //    → 外側の縦の辺（フェンダーへ回り込む）→ 外側上の斜辺 → 上辺の外側の張り出し（折れを伴う段 G・H）→ 上辺（ほぼ水平）。
   //    角は小さな丸み（半径約1.2cm、内側の段は約0.6cm）だけ。縦幅・面積・穏やかな上辺（修正128）は維持。
-  const HP = [[0.322, 0.783], [0.343, 0.647], [0.695, 0.634], [0.812, 0.684], [0.834, 0.768], [0.797, 0.806], [0.684, 0.808], [0.658, 0.794]];
+  // 修正130：目尻をフェンダー側へ延ばし、ライト全体を約2cm上げる。
+  const HP = [[0.322, 0.803], [0.343, 0.667], [0.695, 0.654], [0.852, 0.704], [0.884, 0.788], [0.847, 0.826], [0.684, 0.828], [0.658, 0.814]];
   const HR = [0.012, 0.012, 0.012, 0.012, 0.012, 0.012, 0.006, 0.006], HK = 5, NH = HP.length;
   const hE = HP.map((p, i) => { const q = HP[(i + 1) % NH], l = Math.hypot(q[0] - p[0], q[1] - p[1]); return { d: [(q[0] - p[0]) / l, (q[1] - p[1]) / l], l }; });
   const hM = hE.map(e => Math.max(1, Math.round(e.l / 0.012))); // 辺の途中の分割数（表面への写像で曲面に沿わせるため。輪郭のずらし量によらず一定＝リングどうしの頂点が対応）
@@ -588,7 +589,7 @@ function buildMiraHeadlights(gb, rows) {
     return best > 1e8 ? 1 : Math.min(1, 1 / best); };
   const dome = t => 0.006 + 0.007 * (1 - t * t); // 表面からの浮き（m）：縁 6mm → 中央 13mm
   // 修正129：外側下のアンバー（ウインカー）区画。レンズ内側の輪郭のうち、仕切り線（下辺の u=0.705 → 外側の辺の y=0.716）より外側下の部分
-  const AMB = (() => { const P0 = [0.705, 0], Q0 = [0, 0.716], f = ([u, y]) => (u - 0.705) * (0.716 - 0.636) - (y - 0.636) * (0.83 - 0.705); // f>0：仕切り線の外側下
+  const AMB = (() => { const P0 = [0.705, 0], Q0 = [0, 0.716], amberRoot = [0.705, 0.656], amberTip = [0.884, 0.736], f = ([u, y]) => (u - amberRoot[0]) * (amberTip[1] - amberRoot[1]) - (y - amberRoot[1]) * (amberTip[0] - amberRoot[0]); // +20mm上昇と外端0.884mに追従
     const iD = hIdx(3) + 2, ok = IN.map(p => f(p) > 0); let s = iD, e = iD; while (ok[(s - 1 + n2) % n2]) s = (s - 1 + n2) % n2; while (ok[(e + 1) % n2]) e = (e + 1) % n2;
     const cut = (i, j) => { const a = IN[i], b = IN[j], fa = f(a), fb = f(b), t = fa / (fa - fb); return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
     const A = cut((s - 1 + n2) % n2, s), B = cut(e, (e + 1) % n2), poly = [A]; for (let i = s; ; i = (i + 1) % n2) { poly.push(IN[i]); if (i === e) break; } poly.push(B);
@@ -616,9 +617,9 @@ function buildMiraHeadlights(gb, rows) {
     const disc = (u0, y0, ru, ry, lift, cIn, cOut, mat, n = 24) => { const P = (k, s) => { const a = k / n * Math.PI * 2; return onDome([u0 + Math.cos(a) * ru * s, y0 + Math.sin(a) * ry * s], lift); };
       const Cc = onDome([u0, y0], lift), mix = s => cIn.map((v, j) => v + (cOut[j] - v) * s);
       for (let k = 0; k < n; k++) { T3(Cc, P(k, 0.5), P(k + 1, 0.5), cIn, mix(0.5), mix(0.5), mat); T3(P(k, 0.5), P(k, 1), P(k + 1, 1), mix(0.5), cOut, cOut, mat); T3(P(k, 0.5), P(k + 1, 1), P(k + 1, 0.5), mix(0.5), cOut, mix(0.5), mat); } };
-    disc(0.44, 0.714, 0.056, 0.053, 0.0012, [0.56, 0.58, 0.61], [0.5, 0.52, 0.55], 0); // プロジェクターの台座（控えめなグレー）
-    disc(0.44, 0.714, 0.038, 0.036, 0.0024, [0.93, 0.94, 0.96], [0.76, 0.78, 0.81], 2); // プロジェクターのレンズ（中心ほど明るい）
-    disc(0.585, 0.724, 0.04, 0.038, 0.0012, [0.84, 0.85, 0.87], [0.66, 0.68, 0.71], 2); // ハイビームの反射鏡
+    disc(0.44, 0.734, 0.056, 0.053, 0.0012, [0.56, 0.58, 0.61], [0.5, 0.52, 0.55], 0); // プロジェクター台座（外枠に合わせ+20mm）
+    disc(0.44, 0.734, 0.038, 0.036, 0.0024, [0.93, 0.94, 0.96], [0.76, 0.78, 0.81], 2); // プロジェクターレンズ
+    disc(0.585, 0.744, 0.04, 0.038, 0.0012, [0.84, 0.85, 0.87], [0.66, 0.68, 0.71], 2); // ハイビーム反射鏡（+20mm）
     // 修正129：外側下のアンバー区画（レンズ内の区画。点滅時はこの区画全体が光る：mat 10/11）。外周→中心の3段で曲面に沿わせる
     { const pl = AMB.poly, m = pl.length, c = pl.reduce((q, v) => [q[0] + v[0] / m, q[1] + v[1] / m], [0, 0]), am = sg > 0 ? 10 : 11;
       const rg = s => pl.map(([u, y]) => onDome([c[0] + (u - c[0]) * s, c[1] + (y - c[1]) * s], 0.0014)), R1 = rg(1), R2 = rg(0.62), R3 = rg(0.28), Cc = onDome(c, 0.0014);
@@ -648,13 +649,15 @@ export function buildMira(gb, glassGB, opt = {}) {
   rows.push({ z: MIRA_SEC[MIRA_SEC.length - 1][0], P: sub(miraSection(MIRA_SEC[MIRA_SEC.length - 1])) });
   for (let r = 0; r < rows.length - 1; r++) rows[r].zm = (rows[r].z + rows[r + 1].z) / 2; rows[rows.length - 1].zm = 9;
   if (opt.rowsOut) opt.rowsOut.push(...rows); // 修正124：干渉チェック用（work-shots/tests/pen_check.mjs）に外板の断面列を渡す
+  const frontBow = x => 0.055 * Math.pow(Math.abs(x) / 0.65, 2);
   for (let r = 0; r < rows.length - 1; r++) {
     const z0 = rows[r].z, z1 = rows[r + 1].z, zm = rows[r].zm, A = rows[r].P, B = rows[r + 1].P;
     const hint = [0, 0.75, (z0 + z1) / 2];
     for (let sb = 0; sb < A.length - 1; sb++) {
       const k = miraBand(sb >> bandSh, zm);
       for (const s of [1, -1]) {
-        const p0 = [s * A[sb][0], A[sb][1], z0], p1 = [s * A[sb + 1][0], A[sb + 1][1], z0], p2 = [s * B[sb + 1][0], B[sb + 1][1], z1], p3 = [s * B[sb][0], B[sb][1], z1];
+        const frontEnd = r + 1 === rows.length - 1, zb = x => z1 - (frontEnd ? frontBow(x) : 0);
+        const p0 = [s * A[sb][0], A[sb][1], z0], p1 = [s * A[sb + 1][0], A[sb + 1][1], z0], p2 = [s * B[sb + 1][0], B[sb + 1][1], zb(s * B[sb + 1][0])], p3 = [s * B[sb][0], B[sb][1], zb(s * B[sb][0])];
         if (k === 'glass' && glassGB) { glassGB.tri(p0, p1, p2, { c: [0.3, 0.36, 0.42] }, [0, 0], [0, 0], [0, 0], hint); glassGB.tri(p0, p2, p3, { c: [0.3, 0.36, 0.42] }, [0, 0], [0, 0], [0, 0], hint); continue; }
         const o = k === 'paint' ? paint : k === 'black' ? black : k === 'under' ? under : dglass;
         gb.tri(p0, p1, p2, o, [0, 0], [0, 0], [0, 0], hint); gb.tri(p0, p2, p3, o, [0, 0], [0, 0], [0, 0], hint);
@@ -663,7 +666,8 @@ export function buildMira(gb, glassGB, opt = {}) {
   }
   for (const row of [rows[0], rows[rows.length - 1]]) {
     const P = row.P, z = row.z, c = [0, (P[0][1] + P[P.length - 1][1]) / 2, z], hint = [0, c[1], z - Math.sign(z)]; // 修正101：中心を断面の内側に（以前は y=0.6 固定で、前端では断面より上に三角形が飛び出していた）
-    for (let b = 0; b < P.length - 1; b++) for (const s of [1, -1]) gb.tri(c, [s * P[b][0], P[b][1], z], [s * P[b + 1][0], P[b + 1][1], z], paint, [0, 0], [0, 0], [0, 0], hint);
+    const front = row === rows[rows.length - 1], zz = x => z - (front ? frontBow(x) : 0), cc = [0, c[1], zz(0)];
+    for (let b = 0; b < P.length - 1; b++) for (const s of [1, -1]) gb.tri(cc, [s * P[b][0], P[b][1], zz(s * P[b][0])], [s * P[b + 1][0], P[b + 1][1], zz(s * P[b + 1][0])], paint, [0, 0], [0, 0], [0, 0], hint);
   }
   smoothNormals(gb, i0body, gb.a.length); // 車体の外板だけ（灯火類・グリルなどの部品は角を立てたまま）
   const ZF = 1.6975, ZR = -1.6975;
@@ -678,10 +682,11 @@ export function buildMira(gb, glassGB, opt = {}) {
   // 断面の上端（中央）の実際の位置（補間断面を含む）から作った折れ線：正面の部品はこの面の少し手前に貼る
   const ZSP = rows.filter(r => r.z > 1.5).map(r => [r.P[r.P.length - 1][1] - 0.012, r.z]).sort((p, q) => p[0] - q[0]);
   const ZS = y => { if (y <= ZSP[0][0]) return ZF; for (let i = 0; i < ZSP.length - 1; i++) if (y <= ZSP[i + 1][0]) { const [y0, z0] = ZSP[i], [y1, z1] = ZSP[i + 1]; return z0 + (z1 - z0) * (y - y0) / (y1 - y0); } return 1.55; };
-  const F = (x0, y0, x1, y1, xb0, xb1, dz, o) => gb.quadN([xb0, y0, ZS(y0) + dz], [xb1, y0, ZS(y0) + dz], [x1, y1, ZS(y1) + dz], [x0, y1, ZS(y1) + dz], [0, 0.25, 1], o);
+  const faceZ = (x, y) => ZS(y) - frontBow(x); // 部品面と外板前端に同じ中央張り出し・両端後退を適用
+  const F = (x0, y0, x1, y1, xb0, xb1, dz, o) => gb.quadN([xb0, y0, faceZ(xb0, y0) + dz], [xb1, y0, faceZ(xb1, y0) + dz], [x1, y1, faceZ(x1, y1) + dz], [x0, y1, faceZ(x0, y1) + dz], [0, 0.25, 1], o);
   const dk = { c: [0.06, 0.06, 0.07] };
-  F(-0.29, 0.52, 0.29, 0.648, -0.33, 0.33, 0.026, dk); // 上部グリル（下が広い台形）
-  for (const [y, w] of [[0.552, 0.305], [0.594, 0.3]]) F(-w, y, w, y + 0.012, -w - 0.01, w + 0.01, 0.029, { c: [0.25, 0.26, 0.28] }); // 横スリットの間の桟（ボディ色）
+  F(-0.29, 0.53, 0.29, 0.658, -0.33, 0.33, 0.032, dk); // 開口高さ128mm、上端は維持
+  for (const [y, w] of [[0.558, 0.305], [0.603, 0.3], [0.635, 0.295]]) F(-w, y, w, y + 0.008, -w - 0.01, w + 0.01, 0.036, { c: [0.25, 0.26, 0.28] }); // 開口内の横桟
   for (let k = 0; k < 14; k++) { const a0 = k / 14 * Math.PI * 2, a1 = (k + 1) / 14 * Math.PI * 2, cy = 0.68, y0 = cy + Math.sin(a0) * 0.036, y1 = cy + Math.sin(a1) * 0.036; gb.tri([0, cy, ZS(cy) + 0.016], [Math.cos(a0) * 0.052, y0, ZS(y0) + 0.016], [Math.cos(a1) * 0.052, y1, ZS(y1) + 0.016], { c: [0.72, 0.74, 0.77] }, [0, 0], [0, 0], [0, 0], [0, 0.4, 1]); } // エンブレム
   for (let k = 0; k < 14; k++) { const a0 = k / 14 * Math.PI * 2, a1 = (k + 1) / 14 * Math.PI * 2, cy = 0.68, y0 = cy + Math.sin(a0) * 0.024, y1 = cy + Math.sin(a1) * 0.024; gb.tri([0, cy, ZS(cy) + 0.019], [Math.cos(a0) * 0.036, y0, ZS(y0) + 0.019], [Math.cos(a1) * 0.036, y1, ZS(y1) + 0.019], { c: [0.3, 0.33, 0.37] }, [0, 0], [0, 0], [0, 0], [0, 0.4, 1]); }
   F(-0.45, 0.222, 0.45, 0.272, -0.42, 0.42, 0.004, dk); // 下部グリル
