@@ -9,8 +9,8 @@
 //   修正118：セリフは性別×年齢帯の8区分（ld_lines.js）
 // 状態は LongDrive.st.ev に plain なJSONで持つ（セーブ・再開をまたいで続く。古いセーブには無いので既定値で補う）。天気の変化はセーブしない。
 // このモジュールは DOM・WebGL に触れない（字幕の表示は main.js が poll() の結果を出す）。
-import { ROUTE_LEN, DIST_SCALE } from './ld_world.js?v=0.8.0';
-import { LINES, ECO_COMMENT, NAV, KIND_TRIG, RADIO, FOOD, CAT, mealFor, voiceKey, band } from './ld_lines.js?v=0.8.0';
+import { ROUTE_LEN, DIST_SCALE } from './ld_world.js?v=0.9.0';
+import { LINES, ECO_COMMENT, NAV, KIND_TRIG, RADIO, FOOD, CAT, mealFor, voiceKey, band } from './ld_lines.js?v=0.9.0';
 export { voiceKey, band, mealFor };
 
 const KM = DIST_SCALE / 1000; // 実距離1m → 表示km

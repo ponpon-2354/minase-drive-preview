@@ -1,9 +1,9 @@
 // v0.5 新しい地区：学園地区（大学キャンパス・学生街）とニュータウン（曲線道路・袋小路・小学校・公園）、
 // 既存の郊外に旧街道（斜めに抜ける細い道）。道路は格子ではなく曲線のポリラインで、道路網（信号・NPC・ナビ）に接続する
-import { L } from './textures.js?v=0.8.0';
-import { rng, clamp } from './math.js?v=0.8.0';
-import { MODELS, pickModel, pickColor, pickPassenger, pickFit } from './carmodels.js?v=0.8.0';
-import { installDyn, txt } from './props.js?v=0.8.0';
+import { L } from './textures.js?v=0.9.0';
+import { rng, clamp } from './math.js?v=0.9.0';
+import { MODELS, pickModel, pickColor, pickPassenger, pickFit } from './carmodels.js?v=0.9.0';
+import { installDyn, txt } from './props.js?v=0.9.0';
 
 // 区間の定義（両端は交差点ノード。途中点はなめらかな曲線にする）。axis は信号の位相に使う向き
 export const CURVES = [

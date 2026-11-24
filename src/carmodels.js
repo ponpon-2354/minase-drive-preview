@@ -1,8 +1,8 @@
 // 車両モデル：ミライース（プレイヤー）＋NPC 50車種のパラメトリック・ローポリモデル
 // ※実車の正確な再現ではなく、寸法・シルエットを参考にした簡易モデル（仮モデル）。ロゴ・エンブレムは含まない。
-import { GB, hex } from './geo.js?v=0.8.0';
-import { clamp } from './math.js?v=0.8.0';
-import { L } from './textures.js?v=0.8.0';
+import { GB, hex } from './geo.js?v=0.9.0';
+import { clamp } from './math.js?v=0.9.0';
+import { L } from './textures.js?v=0.9.0';
 
 const C = { // 汎用カラー（実車の市販色を参考にした近似色）
   W: ['ホワイト', '#eeeeec'], PW: ['パールホワイト', '#e9e6dc'], S: ['シルバー', '#b4b8bc'], BK: ['ブラック', '#151517'],
@@ -518,6 +518,87 @@ function smoothNormals(gb, i0 = 0, i1 = gb.a.length, cosT = 0.8) {
   for (const [, g] of map) for (const j of g) { const f = fn[j]; let sx = 0, sy = 0, sz = 0; for (const q of g) { const h = fn[q]; if (h[0] * f[0] + h[1] * f[1] + h[2] * f[2] > cosT && a[q + 6] === a[j + 6] && a[q + 7] === a[j + 7]) { sx += h[0] * h[3]; sy += h[1] * h[3]; sz += h[2] * h[3]; } } const l = Math.hypot(sx, sy, sz) || 1; out.set(j, [sx / l, sy / l, sz / l]); }
   for (const [j, n] of out) { a[j + 3] = n[0]; a[j + 4] = n[1]; a[j + 5] = n[2]; }
 }
+// 修正123：ヘッドライトを車体表面に「載せる」造形に作り直し（自車・NPC共通）
+//  旧版は平らなファン（扇形の三角形）を正面の折れ線 ZS(y) の手前に貼り、回り込み部は別体の板だったため、
+//  曲面の車体と交差して食い込んだり浮いたりし、輪郭の直線区間と面の折れでシャープに見えていた。
+//  新版：① 車体の断面列（rows：実際に描いている外板と同じ多角形）から、水平方向のレイキャストで外板の表面を求めて表にする。
+//        ② ライトの輪郭は「表面に沿った横方向の弧長 u（車体中心からの距離）×高さ y」の2次元で設計した涙滴形（閉じたスプライン、160点）。
+//        ③ 輪郭と内部の同心リングを表面へ写像し、表面の法線方向に数mm浮かせる（中央ほど高いドーム）。縁には外板の内側まで下がる
+//           スカートを付けるので、外板との隙間・交差が出ない。法線は写像の偏微分から求めた滑らかな頂点法線（面の折れなし）。
+//        ④ 内部のプロジェクター・ハイビーム・ウインカーも同じ写像で表面に沿わせ、明暗差を小さくする。
+function buildMiraHeadlights(gb, rows) {
+  const RN = rows.length;
+  const inside = (x, y, z) => { // 外板の内側か（断面の多角形を z で線形補間）
+    if (z < rows[0].z || z > rows[RN - 1].z) return false;
+    let lo = 0, hi = RN - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (rows[m].z <= z) lo = m; else hi = m; }
+    const A = rows[lo].P, B = rows[hi].P, t = (z - rows[lo].z) / ((rows[hi].z - rows[lo].z) || 1), ax = Math.abs(x); let c = false;
+    for (let i = 0, j = A.length - 1; i < A.length; j = i++) {
+      const xi = A[i][0] + (B[i][0] - A[i][0]) * t, yi = A[i][1] + (B[i][1] - A[i][1]) * t, xj = A[j][0] + (B[j][0] - A[j][0]) * t, yj = A[j][1] + (B[j][1] - A[j][1]) * t;
+      if ((yi > y) !== (yj > y) && ax < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  // ① 表面の表：高さ y ごとに、軸 (0.2, y, 1.3) から水平に角度 θ の方向へ出たレイが外板を抜ける点と、横方向の弧長 u
+  const AX = 0.2, AZ = 1.3, Y0 = 0.6, DY = 0.01, NY = 25, T0 = -0.55, DT = 0.015, NT = 125, tab = [];
+  for (let iy = 0; iy < NY; iy++) {
+    const y = Y0 + iy * DY, row = []; let u = 0, prev = null;
+    for (let it = 0; it < NT; it++) {
+      const th = T0 + it * DT, dx = Math.sin(th), dz = Math.cos(th); let a = 0, b = 0.02;
+      while (b < 1.2 && inside(AX + dx * b, y, AZ + dz * b)) { a = b; b += 0.02; }
+      for (let k = 0; k < 16; k++) { const m = (a + b) / 2; if (inside(AX + dx * m, y, AZ + dz * m)) a = m; else b = m; }
+      const p = [AX + dx * a, y, AZ + dz * a];
+      u = prev ? u + Math.hypot(p[0] - prev[0], p[2] - prev[2]) : p[0]; prev = p; row.push([u, p]);
+    }
+    tab.push(row);
+  }
+  const rowAt = (row, u) => { let lo = 0, hi = row.length - 1; if (u <= row[0][0]) hi = 1; else if (u >= row[hi][0]) lo = hi - 1; else while (hi - lo > 1) { const m = (lo + hi) >> 1; if (row[m][0] <= u) lo = m; else hi = m; }
+    const A = row[lo], B = row[hi], t = (u - A[0]) / ((B[0] - A[0]) || 1); return [A[1][0] + (B[1][0] - A[1][0]) * t, A[1][2] + (B[1][2] - A[1][2]) * t]; };
+  const S = (u, y) => { const f = clamp((y - Y0) / DY, 0, NY - 1.001), i = Math.floor(f), t = f - i, a = rowAt(tab[i], u), b = rowAt(tab[i + 1], u); return [a[0] + (b[0] - a[0]) * t, y, a[1] + (b[1] - a[1]) * t]; };
+  const N = (u, y) => { const e = 0.004, a = S(u + e, y), b = S(u - e, y), c = S(u, y + e), d = S(u, y - e), pu = [a[0] - b[0], a[1] - b[1], a[2] - b[2]], py = [c[0] - d[0], c[1] - d[1], c[2] - d[2]];
+    let n = [pu[1] * py[2] - pu[2] * py[1], pu[2] * py[0] - pu[0] * py[2], pu[0] * py[1] - pu[1] * py[0]]; const p = S(u, y); if (n[0] * (p[0] - AX) + n[2] * (p[2] - AZ) < 0) n = n.map(v => -v); const l = Math.hypot(...n) || 1; return n.map(v => v / l); };
+  // ② 涙滴形の輪郭（u, y）。内側の先端は細く丸く、外側は角を曲がって側面へ回り込み、丸く終わる。凸形（同心の縮小が破綻しない）
+  const CP = [[0.288, 0.692], [0.33, 0.674], [0.41, 0.664], [0.51, 0.663], [0.61, 0.669], [0.70, 0.68], [0.77, 0.696], [0.815, 0.722], [0.828, 0.756], [0.81, 0.789],
+    [0.76, 0.802], [0.66, 0.803], [0.56, 0.792], [0.47, 0.772], [0.39, 0.745], [0.33, 0.716]];
+  const OL = []; for (let i = 0; i < CP.length; i++) { const a = CP[(i - 1 + CP.length) % CP.length], b = CP[i], c = CP[(i + 1) % CP.length], d = CP[(i + 2) % CP.length];
+    for (let k = 0; k < 10; k++) { const t = k / 10, t2 = t * t, t3 = t2 * t; OL.push([0, 1].map(j => 0.5 * (2 * b[j] + (-a[j] + c[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t2 + (-a[j] + 3 * b[j] - 3 * c[j] + d[j]) * t3))); } }
+  const n2 = OL.length, cen = OL.reduce((q, v) => [q[0] + v[0] / n2, q[1] + v[1] / n2], [0, 0]);
+  const inset = d => OL.map((p, i) => { const a = OL[(i - 1 + n2) % n2], b = OL[(i + 1) % n2]; let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const l = Math.hypot(nx, ny) || 1; nx /= l; ny /= l; if (nx * (cen[0] - p[0]) + ny * (cen[1] - p[1]) < 0) { nx = -nx; ny = -ny; } return [p[0] + nx * d, p[1] + ny * d]; });
+  const IN = inset(0.009); // 縁（ベゼル）の内側
+  // 輪郭内の点の「中心からの比率」t（0=中心、1=ベゼルの内側）：ドームの高さと色のグラデーションに使う
+  const tOf = (u, y) => { const dx = u - cen[0], dy = y - cen[1], r = Math.hypot(dx, dy); if (r < 1e-6) return 0; let best = 1e9;
+    for (let i = 0; i < n2; i++) { const A = IN[i], B = IN[(i + 1) % n2], ex = B[0] - A[0], ey = B[1] - A[1], den = dx * ey - dy * ex; if (Math.abs(den) < 1e-12) continue; const s = ((A[0] - cen[0]) * ey - (A[1] - cen[1]) * ex) / den, w = ((A[0] - cen[0]) * dy - (A[1] - cen[1]) * dx) / den; if (s > 0 && w >= 0 && w <= 1) best = Math.min(best, s); }
+    return best > 1e8 ? 1 : 1 / best; };
+  const dome = t => 0.006 + 0.007 * (1 - t * t); // 表面からの浮き（m）：縁 6mm → 中央 13mm
+  for (const sg of [1, -1]) {
+    const V = (u, y, off) => { const p = S(u, y), n = N(u, y); return { p: [sg * (p[0] + n[0] * off), p[1] + n[1] * off, p[2] + n[2] * off], n: [sg * n[0], n[1], n[2]] }; };
+    const T3 = (a, b, c, ca, cb, cc, mat) => { // 頂点法線つき三角形（巻き順は法線に合わせる）
+      const ux = b.p[0] - a.p[0], uy = b.p[1] - a.p[1], uz = b.p[2] - a.p[2], vx = c.p[0] - a.p[0], vy = c.p[1] - a.p[1], vz = c.p[2] - a.p[2];
+      const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+      if (fx * (a.n[0] + b.n[0] + c.n[0]) + fy * (a.n[1] + b.n[1] + c.n[1]) + fz * (a.n[2] + b.n[2] + c.n[2]) < 0) { [b, c] = [c, b]; [cb, cc] = [cc, cb]; }
+      gb.vert(a.p, a.n, ca, [0, 0], mat, 0); gb.vert(b.p, b.n, cb, [0, 0], mat, 0); gb.vert(c.p, c.n, cc, [0, 0], mat, 0); };
+    const strip = (A, B, cA, cB, mat) => { for (let i = 0; i < A.length; i++) { const j = (i + 1) % A.length; T3(A[i], A[j], B[j], cA, cA, cB, mat); T3(A[i], B[j], B[i], cA, cB, cB, mat); } };
+    // 縁：外板の内側（-6mm）から立ち上がるスカート → ベゼル（ドームの縁の高さへ）。濃すぎないグレー
+    const bez = [0.27, 0.28, 0.3];
+    strip(OL.map(([u, y]) => V(u, y, -0.006)), OL.map(([u, y]) => V(u, y, 0.004)), bez, bez, 0);
+    strip(OL.map(([u, y]) => V(u, y, 0.004)), IN.map(([u, y]) => V(u, y, dome(1))), bez, [0.42, 0.44, 0.47], 0);
+    // レンズ越しの拡散面：同心リングのドーム。外周はやや暗く、中央ほど明るい（点灯時は mat 2 で面全体が光る）
+    const TS = [1, 0.86, 0.7, 0.52, 0.34, 0.17], col = t => { const k = 0.64 - 0.1 * t; return [k, k + 0.02, k + 0.045]; };
+    const ring = t => IN.map(([u, y]) => V(cen[0] + (u - cen[0]) * t, cen[1] + (y - cen[1]) * t, dome(t)));
+    for (let r = 0; r < TS.length - 1; r++) strip(ring(TS[r]), ring(TS[r + 1]), col(TS[r]), col(TS[r + 1]), 2);
+    { const C = V(cen[0], cen[1], dome(0)), R = ring(TS[TS.length - 1]), c1 = col(TS[TS.length - 1]); for (let i = 0; i < n2; i++) T3(C, R[i], R[(i + 1) % n2], col(0), c1, c1, 2); }
+    // 内部の部品：ドームの表面から少し浮かせた円（u, y の楕円を表面に写像）。リング状に分割して曲面に沿わせる
+    const disc = (u0, y0, ru, ry, lift, cIn, cOut, mat, n = 24) => { const P = (k, s) => { const a = k / n * Math.PI * 2, u = u0 + Math.cos(a) * ru * s, y = y0 + Math.sin(a) * ry * s; return V(u, y, dome(tOf(u, y)) + lift); };
+      const Cc = V(u0, y0, dome(tOf(u0, y0)) + lift), mix = s => cIn.map((v, j) => v + (cOut[j] - v) * s);
+      for (let k = 0; k < n; k++) { T3(Cc, P(k, 0.5), P(k + 1, 0.5), cIn, mix(0.5), mix(0.5), mat); T3(P(k, 0.5), P(k, 1), P(k + 1, 1), mix(0.5), cOut, cOut, mat); T3(P(k, 0.5), P(k + 1, 1), P(k + 1, 0.5), mix(0.5), cOut, mix(0.5), mat); } };
+    disc(0.40, 0.722, 0.044, 0.04, 0.0012, [0.56, 0.58, 0.61], [0.5, 0.52, 0.55], 0); // プロジェクターの台座（控えめなグレー）
+    disc(0.40, 0.722, 0.03, 0.027, 0.0024, [0.93, 0.94, 0.96], [0.76, 0.78, 0.81], 2); // プロジェクターのレンズ（中心ほど明るい）
+    disc(0.50, 0.73, 0.034, 0.031, 0.0012, [0.84, 0.85, 0.87], [0.66, 0.68, 0.71], 2); // ハイビームの反射鏡
+    disc(0.735, 0.712, 0.036, 0.014, 0.0016, [1, 0.62, 0.1], [0.95, 0.5, 0.06], sg > 0 ? 10 : 11, 20); // 外側下のウインカー（アンバー、角のない長円）
+    // 上縁に沿う細いLEDライン（輪郭の上辺を内側へ寄せた帯。周りの拡散面に近い明るさ）
+    { const a = inset(0.013), b = inset(0.019), i0 = Math.round(n2 * 0.6), i1 = Math.round(n2 * 0.95), cl = [0.8, 0.82, 0.85];
+      for (let i = i0; i < i1; i++) { const A0 = V(...a[i], dome(tOf(...a[i])) + 0.0015), A1 = V(...a[i + 1], dome(tOf(...a[i + 1])) + 0.0015), B0 = V(...b[i], dome(tOf(...b[i])) + 0.0015), B1 = V(...b[i + 1], dome(tOf(...b[i + 1])) + 0.0015); T3(A0, A1, B1, cl, cl, cl, 2); T3(A0, B1, B0, cl, cl, cl, 2); } }
+  }
+}
 export function buildMira(gb, glassGB, opt = {}) {
   const i0body = gb.a.length;
   const paint = opt.paint ? { c: opt.paint, mat: 0 } : { c: [1, 1, 1], mat: 1 };
@@ -532,6 +613,7 @@ export function buildMira(gb, glassGB, opt = {}) {
   for (let i = 0; i < MIRA_SEC.length - 1; i++) for (let q = 0; q < NS; q++) { const m = q ? lerpSec(i, q / NS) : MIRA_SEC[i]; rows.push({ z: m[0], P: sub(miraSection(m)) }); }
   rows.push({ z: MIRA_SEC[MIRA_SEC.length - 1][0], P: sub(miraSection(MIRA_SEC[MIRA_SEC.length - 1])) });
   for (let r = 0; r < rows.length - 1; r++) rows[r].zm = (rows[r].z + rows[r + 1].z) / 2; rows[rows.length - 1].zm = 9;
+  if (opt.rowsOut) opt.rowsOut.push(...rows); // 修正124：干渉チェック用（work-shots/tests/pen_check.mjs）に外板の断面列を渡す
   for (let r = 0; r < rows.length - 1; r++) {
     const z0 = rows[r].z, z1 = rows[r + 1].z, zm = rows[r].zm, A = rows[r].P, B = rows[r + 1].P;
     const hint = [0, 0.75, (z0 + z1) / 2];
@@ -576,47 +658,8 @@ export function buildMira(gb, glassGB, opt = {}) {
     gb.quadN([sg * 0.47, 0.24, ZF + 0.004], [sg * 0.58, 0.25, ZF - 0.012], [sg * 0.58, 0.42, ZF - 0.012], [sg * 0.49, 0.43, ZF + 0.004], [0, 0, 1], { c: [0.1, 0.1, 0.11] });
     for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI * 2, a1 = (k + 1) / 8 * Math.PI * 2, cx = sg * 0.53, cy = 0.33, rr = 0.022; gb.tri([cx, cy, ZF + 0.006], [cx + Math.cos(a0) * rr, cy + Math.sin(a0) * rr, ZF + 0.006], [cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr, ZF + 0.006], { c: [0.75, 0.76, 0.78] }, [0, 0], [0, 0], [0, 0], [0, 0.4, 1]); }
   }
-  // ヘッドライト（修正101）：輪郭を細かく分割した異形ランプ。内側が細く尖り、外側へ上下に広がってフェンダーへ回り込む。
-  //  奥行きのある構造：黒いハウジングの縁 → 一段奥のメッキ反射面（縁との間に黒い内壁）→ プロジェクター（筒と発光面）・ハイビームの反射鏡、
-  //  上縁のLEDライン、外側下のウインカー、手前に透明なレンズ（自車はガラスメッシュ）。発光面は mat 2（点灯時に光る）
-  const hwAt = z => { for (let i = 0; i < MIRA_SEC.length - 1; i++) { const A = MIRA_SEC[i], B = MIRA_SEC[i + 1]; if (z >= A[0] && z <= B[0]) return A[1] + (B[1] - A[1]) * (z - A[0]) / (B[0] - A[0]); } return MIRA_SEC[MIRA_SEC.length - 1][1]; };
-  const OUT = [[0.285, 0.664], [0.34, 0.656], [0.40, 0.654], [0.46, 0.657], [0.51, 0.662], [0.545, 0.669], [0.575, 0.667], [0.6, 0.672], // 下辺（外側の手前で小さな段）
-    [0.604, 0.72], [0.603, 0.765], [0.6, 0.808], // 外側の縦辺
-    [0.55, 0.803], [0.49, 0.793], [0.43, 0.78], [0.375, 0.765], [0.33, 0.746], [0.302, 0.716]]; // 上辺（内側へ下がって先端へ）
-  // 修正106：輪郭の角をさらに丸める（チャイキン法で2回の角取り。シャープすぎない柔らかい輪郭に）
-  const chaikin = P => { const out = []; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } return out; };
-  const OUTR = chaikin(chaikin(OUT));
-  const fan = (P, o, hint) => { const c = P.reduce((q, v) => [q[0] + v[0] / P.length, q[1] + v[1] / P.length, q[2] + v[2] / P.length], [0, 0, 0]); for (let i = 0; i < P.length; i++) gb.tri(c, P[i], P[(i + 1) % P.length], o, [0, 0], [0, 0], [0, 0], hint); };
-  for (const sg of [1, -1]) {
-    const M = (x, y, dz) => [sg * x, y, ZS(y) + dz], hint = [sg * 0.3, 0.5, 1.5];
-    const cx = OUTR.reduce((q, v) => q + v[0], 0) / OUTR.length, cy = OUTR.reduce((q, v) => q + v[1], 0) / OUTR.length;
-    const ins = (t, dz) => OUTR.map(([x, y]) => M(cx + (x - cx) * t, cy + (y - cy) * t, dz));
-    const rim = OUTR.map(([x, y]) => M(x, y, 0.03)), rimI = ins(0.955, 0.03), refl = ins(0.935, 0.016);
-    const ring = (A, B, o) => { for (let i = 0; i < A.length; i++) { const j = (i + 1) % A.length; gb.tri(A[i], A[j], B[j], o, [0, 0], [0, 0], [0, 0], hint); gb.tri(A[i], B[j], B[i], o, [0, 0], [0, 0], [0, 0], hint); } };
-    // 修正106：縁は細く、真っ黒ではない濃いグレーに。内側は乳白がかったクリアレンズ越しに見える明るい拡散面（点灯時は面全体がふんわり光る mat 2）
-    ring(rim, rimI, { c: [0.2, 0.21, 0.23] }); // ハウジングの縁（細い枠）
-    ring(rimI, refl, { c: [0.5, 0.52, 0.55] }); // 縁から一段奥へのなだらかな内壁
-    fan(refl, { c: [0.6, 0.62, 0.65], mat: 2 }, hint); // 乳白の拡散面（昼は明るいグレー、点灯時は面全体が柔らかく光る）
-    // プロジェクター（内側）：黒い筒が手前へ出て、先端に発光するレンズ。外側にハイビームの丸い反射鏡
-    const disc = (x, y, r, dz, o, n = 16) => { const c0 = M(x, y, dz); for (let k = 0; k < n; k++) { const a0 = k / n * Math.PI * 2, a1 = (k + 1) / n * Math.PI * 2; gb.tri(c0, M(x + Math.cos(a0) * r, y + Math.sin(a0) * r, dz), M(x + Math.cos(a1) * r, y + Math.sin(a1) * r, dz), o, [0, 0], [0, 0], [0, 0], hint); } };
-    const barrel = (x, y, r, d0, d1, o, n = 16) => { for (let k = 0; k < n; k++) { const a0 = k / n * Math.PI * 2, a1 = (k + 1) / n * Math.PI * 2, A = M(x + Math.cos(a0) * r, y + Math.sin(a0) * r, d0), B = M(x + Math.cos(a1) * r, y + Math.sin(a1) * r, d0), C = M(x + Math.cos(a1) * r, y + Math.sin(a1) * r, d1), D = M(x + Math.cos(a0) * r, y + Math.sin(a0) * r, d1); gb.tri(A, B, C, o, [0, 0], [0, 0], [0, 0], hint); gb.tri(A, C, D, o, [0, 0], [0, 0], [0, 0], hint); } };
-    // 修正106：プロジェクター等はレンズ越しにぼんやり見えるよう、周りとの明暗差を小さく（筒は濃い黒にしない）。発光部は中心から外へ段階的に暗くしてにじみを表現
-    disc(0.385, 0.722, 0.042, 0.0165, { c: [0.66, 0.68, 0.71], mat: 2 }); barrel(0.385, 0.722, 0.03, 0.017, 0.022, { c: [0.5, 0.52, 0.55] }); disc(0.385, 0.722, 0.026, 0.0222, { c: [0.8, 0.82, 0.85], mat: 2 }); disc(0.385, 0.722, 0.015, 0.0226, { c: [0.92, 0.93, 0.95], mat: 2 });
-    disc(0.48, 0.73, 0.034, 0.017, { c: [0.72, 0.74, 0.77], mat: 2 }); disc(0.48, 0.73, 0.016, 0.0175, { c: [0.85, 0.86, 0.88], mat: 2 });
-    // 上縁のLEDライン（上辺に沿う細い帯）
-    // 修正106：強い反射の線を減らす：上縁のLEDラインは細く、周りの拡散面に近い明るさに（くっきりした白線にしない）
-    for (let i = 11; i < OUT.length - 1; i++) { const A = OUT[i], B = OUT[i + 1]; const P = [M(A[0], A[1] - 0.008, 0.0175), M(B[0], B[1] - 0.008, 0.0175), M(B[0], B[1] - 0.015, 0.0175), M(A[0], A[1] - 0.015, 0.0175)]; gb.tri(P[0], P[1], P[2], { c: [0.74, 0.76, 0.79], mat: 2 }, [0, 0], [0, 0], [0, 0], hint); gb.tri(P[0], P[2], P[3], { c: [0.74, 0.76, 0.79], mat: 2 }, [0, 0], [0, 0], [0, 0], hint); }
-    // 外側下のウインカー（アンバー）
-    fan([M(0.545, 0.682, 0.016), M(0.596, 0.686, 0.016), M(0.598, 0.722, 0.016), M(0.56, 0.716, 0.016)], { c: [1, 0.55, 0.05], mat: sg > 0 ? 10 : 11 }, hint);
-    // フェンダーへの回り込み（3列。後ろへ行くほど細くなる）
-    const wz = [ZS(0.74) + 0.01, 1.6, 1.55, 1.515], wy = [[0.679, 0.802], [0.694, 0.81], [0.708, 0.814], [0.74, 0.806]];
-    const WP = (k, t, d) => { const z = Math.min(wz[k], ZF - 0.005), y = wy[k][0] + (wy[k][1] - wy[k][0]) * t; return [sg * (k === 0 ? 0.6 + d : hwAt(z) * 0.985 + d), y, z]; };
-    for (let k = 0; k < 3; k++) { const H = [WP(k, 0, 0.014), WP(k + 1, 0, 0.014), WP(k + 1, 1, 0.014), WP(k, 1, 0.014)], C = [WP(k, 0.15, 0.018), WP(k + 1, 0.15, 0.018), WP(k + 1, 0.85, 0.018), WP(k, 0.85, 0.018)];
-      // 修正106：回り込み部も縁を濃いグレーに、中は乳白の拡散面（アンバーは外側下の小さなウインカーだけにして、大きな橙の面を作らない）
-      const sh = [sg, 0.3, 0.6], hc = { c: [0.2, 0.21, 0.23] }, cc = { c: k === 0 ? [0.62, 0.64, 0.67] : [0.56, 0.58, 0.62], mat: 2 }; gb.tri(H[0], H[1], H[2], hc, [0, 0], [0, 0], [0, 0], sh); gb.tri(H[0], H[2], H[3], hc, [0, 0], [0, 0], [0, 0], sh);
-      gb.tri(C[0], C[1], C[2], cc, [0, 0], [0, 0], [0, 0], sh); gb.tri(C[0], C[2], C[3], cc, [0, 0], [0, 0], [0, 0], sh); }
-    // （レンズはガラスメッシュに入れると内部が灰色に曇って見えるため入れない。反射面の明るさでクリアレンズ感を出す）
-  }
+  // ヘッドライト：修正123で車体表面に沿う涙滴形に作り直し（buildMiraHeadlights。自車・NPC共通、発光面は mat 2）
+  buildMiraHeadlights(gb, rows);
   // リア：縦長のコンビランプ、ナンバー、スポイラー、ハイマウントストップ、ワイパー、マフラー
   for (const s of [1, -1]) { // 縦長のリアコンビランプ（バックドアの両端。側面へ回り込む）
     const x0 = s * 0.44, x1 = s * 0.625;
@@ -729,13 +772,16 @@ export function buildPlayerCar() {
     interior.box(sx - 0.18, 0.26, -0.66, sx + 0.18, 0.3, -0.26, { c: [0.1, 0.1, 0.1] }); // シートレール・脚
   }
   interior.box(-Wh + 0.1, 0.28, -1.52, Wh - 0.1, 0.45, -1.1, seat); // 後席の座面（ベンチ）
-  interior.box(-Wh + 0.1, 0.42, -1.64, Wh - 0.1, 0.8, -1.54, seat); // 後席の背もたれ（下）
-  interior.box(-Wh + 0.1, 0.8, -1.68, Wh - 0.1, 1.04, -1.58, seat); // 後席の背もたれ（上）
-  for (const sx of [-0.34, 0.34]) interior.box(sx - 0.12, 1.06, -1.69, sx + 0.12, 1.18, -1.62, seatD); // 後席のヘッドレスト
+  // 修正124：後席の背もたれ上部とヘッドレストがリアゲート（ガラス・バックドア）の外へ突き出していた（旧 z=-1.68〜-1.58／-1.69〜-1.62）。
+  //  背もたれの前面（z=-1.54、修正113）は変えずに厚みを詰め、ヘッドレストを前へ寄せて、寝たリアガラスの内側（1.5cm以上）に収める
+  interior.box(-Wh + 0.1, 0.42, -1.62, Wh - 0.1, 0.8, -1.54, seat); // 後席の背もたれ（下）
+  interior.box(-Wh + 0.1, 0.8, -1.63, Wh - 0.1, 1.04, -1.555, seat); // 後席の背もたれ（上・わずかに寝かせる）
+  for (const sx of [-0.34, 0.34]) { interior.box(sx - 0.12, 1.06, -1.61, sx + 0.12, 1.165, -1.567, seatD); for (const hx of [-0.07, 0.07]) interior.box(sx + hx - 0.008, 1.04, -1.595, sx + hx + 0.008, 1.06, -1.58, { c: [0.6, 0.6, 0.62] }); } // 後席のヘッドレスト（ステー付き）
   // 床（後席の足元は一段低く）・内張り・天井（後席の頭上まで）
-  interior.box(-Wh + 0.03, 0.22, -1.5, Wh - 0.03, 0.26, zW - 0.1, { c: [0.12, 0.12, 0.12] });
-  for (const s of [1, -1]) interior.box(s * (Wh - 0.04) - 0.025, 0.3, -1.66, s * (Wh - 0.04) + 0.025, belt + 0.03, zW - 0.2, beige);
-  interior.box(-Wh + 0.12, p.H - 0.09, -1.62, Wh - 0.12, p.H - 0.06, p.L / 2 - p.wsT - 0.05, { c: [0.75, 0.73, 0.68] });
+  // 修正124：床板の角（ロッカー部）・左右の内張り（ベルトライン付近と後端）・天井の内張り（ルーフの角とリアガラス）が外板を貫通していたので、外板の内側に収める
+  interior.box(-Wh + 0.07, 0.22, -1.5, Wh - 0.07, 0.26, zW - 0.1, { c: [0.12, 0.12, 0.12] });
+  for (const s of [1, -1]) interior.box(s * (Wh - 0.095) - 0.02, 0.3, -1.5, s * (Wh - 0.095) + 0.02, belt + 0.03, zW - 0.2, beige);
+  interior.box(-Wh + 0.16, p.H - 0.09, -1.42, Wh - 0.16, p.H - 0.06, p.L / 2 - p.wsT - 0.05, { c: [0.75, 0.73, 0.68] });
   // ルームミラー
   const zFt = p.L / 2 - p.wsT;
   interior.box(-0.11, p.H - 0.22, zFt - 0.12, 0.11, p.H - 0.15, zFt - 0.08, { c: [0.1, 0.1, 0.1] });

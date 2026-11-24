@@ -1,9 +1,9 @@
 // v0.4 追加：田園の作り直し（区画・畦・用水路・ため池・果樹園・茶畑・ビニールハウス・無人販売所・農道・軽トラ巡回）、
 // 桜並木、墓地、工事現場、建築中・解体中の家、公園の小物、電話ボックス・案内図・掲示板・駐輪場、雑草・落ち葉、水たまり、
 // 歩行者用信号、建物の影・遠景シルエット用データ
-import { L } from './textures.js?v=0.8.0';
-import { rng, clamp } from './math.js?v=0.8.0';
-import { MODELS, pickModel, pickColor } from './carmodels.js?v=0.8.0';
+import { L } from './textures.js?v=0.9.0';
+import { rng, clamp } from './math.js?v=0.9.0';
+import { MODELS, pickModel, pickColor } from './carmodels.js?v=0.9.0';
 
 const GRASS = { c: [0.5, 0.62, 0.36], lay: 0 };
 export function cherry(gb, x, z, R, s = 1) { // 桜（春の花の色）

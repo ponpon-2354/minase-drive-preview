@@ -1,11 +1,11 @@
 // 長距離ドライブモードのムービー（休憩：4季節×1〜3人、到着：4季節×1〜3人 ＝ 24通り）
 // 3Dの人物と3Dの場面を、カメラの移動・人物の動作（食べる・飲む・話す・眺める・寝そべる・歩く）・表情の切り替えで見せる。
 // 画面の文字（字幕・時刻）はHTMLで重ねる。スキップしても休憩・時刻・クリアの処理は呼び出し側で必ず行う。
-import { GB } from './geo.js?v=0.8.0';
-import { L, FONT, renderLayer } from './textures.js?v=0.8.0';
-import { rng, clamp, lerp } from './math.js?v=0.8.0';
-import { buildChar, buildFace, headPos, charHeight } from './passengers.js?v=0.8.0';
-import { MENU, MOVIE, mealFor, voiceKey } from './ld_lines.js?v=0.8.0';
+import { GB } from './geo.js?v=0.9.0';
+import { L, FONT, renderLayer } from './textures.js?v=0.9.0';
+import { rng, clamp, lerp } from './math.js?v=0.9.0';
+import { buildChar, buildFace, headPos, charHeight } from './passengers.js?v=0.9.0';
+import { MENU, MOVIE, mealFor, voiceKey } from './ld_lines.js?v=0.9.0';
 
 const ease = t => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 const V = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
