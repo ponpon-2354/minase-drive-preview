@@ -1,24 +1,24 @@
 // 水瀬市ドライブ：メインループ・カメラ・時間/天候・UI・入力
-import { Renderer } from './renderer.js?v=0.9.1';
-import { City, auditGround, auditLaneBlock } from './city.js?v=0.9.1';
-import { GB } from './geo.js?v=0.9.1';
-import { M4, clamp, lerp, rng } from './math.js?v=0.9.1';
-import { buildPlayerCar, MIRA_COLORS, MODELS, VARIATIONS, buildHull, buildMiraNPC, tractorDef, buildTrailer } from './carmodels.js?v=0.9.1';
-import { Player, SmartAssist } from './player.js?v=0.9.1';
-import { Traffic } from './traffic.js?v=0.9.1';
-import { Sound, Music, TRACKS } from './audio.js?v=0.9.1';
-import { saveGame, loadGame, clearSave } from './save.js?v=0.9.1';
-import { L, plateUV, renderLayer } from './textures.js?v=0.9.1';
-import { installNav, LABELS as MAP_LABELS } from './nav.js?v=0.9.1';
-import { districtCoverage } from './districts.js?v=0.9.1';
-import { buildPerson, buildDriver, buildBike, buildMoto, Peds, AGES, SEXES, OUTFITS, buildHands, buildStanding } from './people.js?v=0.9.1';
-import { BIKE_M, MOTO_M } from './traffic.js?v=0.9.1';
-import { LongDrive, START_MIN, hhmm, dur, fatigueStage } from './longdrive.js?v=0.9.1';
-import { Cutscene } from './cutscene.js?v=0.9.1';
-import { LDSetup, renderClear } from './ld_ui.js?v=0.9.1';
-import { buildChar, buildPassengersInCar, driverChar, SEASON_NAMES } from './passengers.js?v=0.9.1';
-import { loadLD, getClears, loadLDPrefs, saveLDPrefs } from './save.js?v=0.9.1';
-import { LDMusic } from './ld_music.js?v=0.9.1';
+import { Renderer } from './renderer.js?v=0.9.2';
+import { City, auditGround, auditLaneBlock } from './city.js?v=0.9.2';
+import { GB } from './geo.js?v=0.9.2';
+import { M4, clamp, lerp, rng } from './math.js?v=0.9.2';
+import { buildPlayerCar, MIRA_COLORS, MODELS, VARIATIONS, buildHull, buildMiraNPC, tractorDef, buildTrailer } from './carmodels.js?v=0.9.2';
+import { Player, SmartAssist } from './player.js?v=0.9.2';
+import { Traffic } from './traffic.js?v=0.9.2';
+import { Sound, Music, TRACKS } from './audio.js?v=0.9.2';
+import { saveGame, loadGame, clearSave } from './save.js?v=0.9.2';
+import { L, plateUV, renderLayer } from './textures.js?v=0.9.2';
+import { installNav, LABELS as MAP_LABELS } from './nav.js?v=0.9.2';
+import { districtCoverage } from './districts.js?v=0.9.2';
+import { buildPerson, buildDriver, buildBike, buildMoto, Peds, AGES, SEXES, OUTFITS, buildHands, buildStanding } from './people.js?v=0.9.2';
+import { BIKE_M, MOTO_M } from './traffic.js?v=0.9.2';
+import { LongDrive, START_MIN, hhmm, dur, fatigueStage } from './longdrive.js?v=0.9.2';
+import { Cutscene } from './cutscene.js?v=0.9.2';
+import { LDSetup, renderClear } from './ld_ui.js?v=0.9.2';
+import { buildChar, buildPassengersInCar, driverChar, SEASON_NAMES } from './passengers.js?v=0.9.2';
+import { loadLD, getClears, loadLDPrefs, saveLDPrefs } from './save.js?v=0.9.2';
+import { LDMusic } from './ld_music.js?v=0.9.2';
 // v0.7.0 長距離ドライブ：LD（進行中のドライブ）、cut（再生中のムービー）、ldSetup（設定画面）
 let LD = null, cut = null, ldSetup = null, ldPrev = null, ldSv = null, mmLabels = null;
 // v0.8.0：長距離専用BGM（修正102・103）と、その設定（BGM・同乗者のセリフ・ラジオ案内のON/OFF。端末に保存）
