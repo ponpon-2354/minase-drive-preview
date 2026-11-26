@@ -181,7 +181,8 @@ export class LDEvents {
     if (F.v == null) F.v = kmh; const a = (kmh - F.v) / 3.6 / Math.max(dt, 1e-3); F.v = kmh; F.acc += (a - F.acc) * (1 - Math.exp(-dt / 0.25)); const acc = f.acc != null ? f.acc : F.acc;
     E.t += dt; E.maxKmh = Math.max(E.maxKmh, kmh);
     if (f.cruise) E.cruiseT += dt;
-    if (main && kmh >= 70 && kmh <= 100) E.bandT += dt;
+    const inBand = this.world.season === 'shutoko' ? kmh >= 45 && kmh <= 65 : kmh >= 70 && kmh <= 100;
+    if (main && inBand) E.bandT += dt;
     // 急加速：加速度2.0m/s²超、またはアクセル全開で1.0m/s²超が0.6秒続いたら1回
     if (acc > 2.0 || (f.thr >= 0.95 && acc > 1.0 && kmh > 20)) { F.accRun += dt; if (F.accRun >= 0.6 && !F.accHit) { E.acc++; F.accHit = true; } } else { F.accRun = 0; F.accHit = false; }
     // 急ブレーキ：減速度3.5m/s²超が0.5秒続いたら1回（軽く踏んで速度を合わせるのは数えない）
@@ -198,7 +199,7 @@ export class LDEvents {
     const it = (label, pts, detail) => { items.push({ label, pts: Math.round(pts), detail }); return Math.round(pts); };
     let sc = 90;
     sc += it('速度キープの活用', Math.min(10, cruise / 0.5 * 10), `走行時間の${Math.round(cruise * 100)}%`);
-    sc += it('推奨速度帯（70〜100km/h）', band >= 0.85 ? 0 : -Math.min(30, (0.85 - band) * 45), `本線走行の${Math.round(band * 100)}%`);
+    sc += it(this.world.season === 'shutoko' ? '推奨速度帯（45〜65km/h）' : '推奨速度帯（70〜100km/h）', band >= 0.85 ? 0 : -Math.min(30, (0.85 - band) * 45), `本線走行の${Math.round(band * 100)}%`);
     sc += it('急加速', -Math.min(20, E.acc * 4), `${E.acc}回`);
     sc += it('急ブレーキ', -Math.min(25, E.brk * 5), `${E.brk}回`);
     sc += it('蛇行', -Math.min(15, E.weave * 3), `${E.weave}回`);

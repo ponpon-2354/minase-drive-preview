@@ -30,7 +30,7 @@ class LDTraffic {
     const lane = big ? 0 : R() < (ahead ? 0.55 : 0.4) ? 0 : 1, u = dir * LANE_U[lane];
     let s = ps + (ahead ? 1 : -1) * (350 + R() * 300); if (s < 20 || s > this.w.ROUTE_LEN - 60) return;
     if (this.cars.some(c => c.dir === dir && c.lane === lane && Math.abs(c.s - s) < 60)) return;
-    const col = pickColor(m, R), urban = this.w.season === 'shutoko' && s < 41100, vS = big ? (urban ? 55 + R() * 5 : 75 + R() * 5) : (urban ? 55 + R() * 12 : 75 + R() * 15), vF = urban ? 65 + R() * 20 : 95 + R() * 35;
+    const col = pickColor(m, R), urban = this.w.season === 'shutoko' && s < 48671, vS = big ? (urban ? 55 + R() * 5 : 75 + R() * 5) : (urban ? 55 + R() * 12 : 75 + R() * 15), vF = urban ? 65 + R() * 20 : 95 + R() * 35;
     const c = { s, u, dir, lane, vS, vF, big, m, tint: col.rgb, plate: { cls: plateClass(m), i: (R() * 64) | 0 }, x: 0, z: 0, y: 0, yaw: 0, slope: 0, brake: false, laneT: 0 };
     c.v = c.v0 = this.laneV(c, lane); this.cars.push(c);
   }

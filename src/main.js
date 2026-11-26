@@ -977,7 +977,7 @@ function renderLDSet(dt, aspect) {
 }
 async function startLD(cfg, sv) {
   state = 'load'; show('load'); setHud(false); if (cut) { cut.finish(); cut = null; }
-  $('lmsg').textContent = `${SEASON_NAMES[cfg.season]}の長距離ドライブ（${cfg.season === 'shutoko' ? '35km' : '400km'}）を準備中…`; $('lbar').style.width = '10%'; await frame(); await frame();
+  $('lmsg').textContent = `${SEASON_NAMES[cfg.season]}の長距離ドライブ（${cfg.season === 'shutoko' ? '41km' : '400km'}）を準備中…`; $('lbar').style.width = '10%'; await frame(); await frame();
   // 市街地の読み込み済みチャンク・遠景を解放してメモリを空ける（市街地のセーブはそのまま）
   for (const c of city.chunks) { if (c.m) city.freeChunk(c, R); c.pend = null; if (c.far) { R.free(c.far); c.far = null; } if (c.farT) { R.free(c.farT); c.farT = null; } }
   for (const k of ['global', 'gdecal', 'mtn']) if (meshes[k]) R.free(meshes[k]);

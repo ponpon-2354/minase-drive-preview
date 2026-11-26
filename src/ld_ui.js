@@ -8,7 +8,7 @@ const SEASON_TEXT = {
   summer: ['海岸バイパス・青い海・海辺の橋・海岸トンネル・港町', '高原の道をのぼって、コテージで過ごす'],
   autumn: ['紅葉の山・渓谷と渓流・紅葉トンネル・展望台', '山あいの集落を抜け、木造の宿で紅葉を眺める'],
   winter: ['雪の山道・雪の壁・雪化粧の森・凍った湖', '雪の橋とトンネルを越えて、湯けむりの温泉郷へ']
-  ,shutoko: ['一之江から都心環状線、山手トンネルを抜ける首都高ドライブ', '箱崎PA・永福PAでひと休みし、中央道から調布ICへ']
+  ,shutoko: ['一之江から都心環状線、山手トンネルを抜ける首都高ドライブ', '箱崎PAでひと休みし、中央道から調布ICへ']
 };
 // 季節の見どころの絵（キャンバスに描く。季節ごとに色と景色を変える）
 export function paintSeason(cv, season) {
@@ -105,8 +105,8 @@ export class LDSetup {
       const rows = [['季節', SEASON_NAMES[c.season]], ['人数', `${c.n}人`], ['運転者', this.ui.driverText()],
         ...c.passengers.map((p, i) => [`同乗者${i + 1}`, `${passengerLabel(p.ch)}・${outfitName(p.ch.outfit)}`]),
         ['座席', ['運転席：あなた', ...c.passengers.map((p, i) => `${seatName(p.seat)}：同乗者${i + 1}${p.ch.age === 'child' ? '（ジュニアシート）' : ''}`)].join('<br>')],
-        ['車両', this.ui.carText()], ['出発', c.season === 'shutoko' ? '一之江入口 09:00' : '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${D.dest}（約${c.season === 'shutoko' ? 35 : 400}km・到着予定 ${c.season === 'shutoko' ? '10:00' : '14:00'} ごろ）`],
-        ['休憩施設', c.season === 'shutoko' ? `${D.fac[0]}（約8.5km）<br>${D.fac[1]}（約27km）` : D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
+        ['車両', this.ui.carText()], ['出発', c.season === 'shutoko' ? '一之江入口 09:00' : '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${D.dest}（約${c.season === 'shutoko' ? 41 : 400}km・到着予定 ${c.season === 'shutoko' ? '10:00' : '14:00'} ごろ）`],
+        ['休憩施設', c.season === 'shutoko' ? `${D.fac[0]}（約9.7km）` : D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
       body.innerHTML = `<h2>確認</h2><table class="ldt">${rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</table>
         <p class="small">${c.season === 'shutoko' ? '首都高コースは表示距離と時計を実車相当に設定しています。' : '時間は現実の45分でゲーム内の24時間（現実1分＝ゲーム内32分）。距離も同じ割合で縮めています（実際の走行1km＝表示32km）。'}連続運転4時間を目安に休憩しましょう。</p>
         <div class="btns"><button data-a="edit">設定にもどる</button><button data-a="start" class="pri">ドライブ開始</button></div>`;
