@@ -1,6 +1,7 @@
 // 長距離ドライブモード：同乗者・運転者のキャラクター（性別・年齢・服装・表情）と、車内の座席配置
 // キャラクターはローポリの汎用人形（実在の人物・キャラクターではない）。年齢は体格・髪・顔・服装の細部に反映する
 import { rng } from './math.js?v=0.9.3';
+import { ambienceSeason } from './ld_world.js?v=0.9.3';
 
 export const AGE_OPTS = [['child', '子ども（約9歳）'], ['10', '10代'], ['20', '20代'], ['30', '30代'], ['40', '40代'], ['50', '50代'], ['60', '60代以上']];
 export const OUTFIT_OPTS = [
@@ -13,14 +14,14 @@ export const OUTFIT_OPTS = [
   ['kids', '子ども用カジュアルウェア', ['spring', 'summer', 'autumn', 'winter']]
 ];
 export const SEAT_OPTS = [['front', '助手席'], ['rearR', '後席右'], ['rearL', '後席左']];
-export const SEASON_NAMES = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' };
+export const SEASON_NAMES = { spring: '春', summer: '夏', autumn: '秋', winter: '冬', shutoko: '首都高' };
 // ミライースの乗車定員は4名（運転者＋同乗者3名まで）。このモードは同乗者2名まで
 export const CAR_CAPACITY = 4;
 
 // 季節と年齢に合う服装だけを選べるようにする（子どもは子ども用、大人は子ども用を選べない）
 export function outfitAllowed(id, season, age) {
   const o = OUTFIT_OPTS.find(q => q[0] === id); if (!o) return false;
-  if (!o[2].includes(season)) return false;
+  if (!o[2].includes(ambienceSeason(season))) return false;
   if (age === 'child') return id === 'kids' || id === 'outdoor' || id === 'casual';
   return id !== 'kids';
 }

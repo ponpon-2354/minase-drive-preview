@@ -9,12 +9,11 @@
 //   修正118：セリフは性別×年齢帯の8区分（ld_lines.js）
 // 状態は LongDrive.st.ev に plain なJSONで持つ（セーブ・再開をまたいで続く。古いセーブには無いので既定値で補う）。天気の変化はセーブしない。
 // このモジュールは DOM・WebGL に触れない（字幕の表示は main.js が poll() の結果を出す）。
-import { ROUTE_LEN, DIST_SCALE } from './ld_world.js?v=0.9.3';
+import { ambienceSeason } from './ld_world.js?v=0.9.3';
 import { LINES, ECO_COMMENT, NAV, KIND_TRIG, RADIO, FOOD, CAT, mealFor, voiceKey, band } from './ld_lines.js?v=0.9.3';
 export { voiceKey, band, mealFor };
 
-const KM = DIST_SCALE / 1000; // 実距離1m → 表示km
-const kmToS = km => km / KM;   // 表示km → 実距離m
+const kmToS = (km, world) => km * 1000 / world.DIST_SCALE;   // 表示km → 実距離m
 const TALK_GAP = 90, TALK_GAP_HI = 35, SUB_GAP = 4, NAV_GAP = 6; // 秒（現実時間）
 const NAV_LEAD = [780, 470]; // ナビの観光案内を出す範囲：地物の 表示25km〜15km 手前（実 780〜470m）
 function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -24,24 +23,26 @@ export const ageGroup = voiceKey;
 
 // ---- 見どころ（ナビの観光案内と同乗者の反応）：world.feats（実際に置いた地物）から作る ----
 export function spotsFor(world) {
-  const D = world.D, se = world.season, out = [];
+  const D = world.D, se = ambienceSeason(world.season), out = [];
   const feats = world.feats || [...D.bridges.map(([a, b, nm]) => ({ id: 'brg:' + nm, kind: 'bridge', name: nm, s0: a, s1: b, side: 0 })), ...D.tunnels.map(([a, b, nm]) => ({ id: 'tun:' + nm, kind: 'tunnel', name: nm, s0: a, s1: b, side: 0 }))];
   const sideT = sd => sd > 0 ? '左手に' : sd < 0 ? '右手に' : '';
   for (const f of feats) {
-    if (f.s0 > ROUTE_LEN + 20) continue;
+    if (f.s0 > world.ROUTE_LEN + 20) continue;
     const t = f.kind === 'dest' ? NAV.dest[se] : NAV[f.kind], trig = f.kind === 'dest' ? (se === 'spring' ? 'castle' : 'destView') : KIND_TRIG[f.kind] || null;
     const at = Math.max(f.s0, 40); // 出発地点から始まる地物は出発直後に
     out.push({ id: f.id, feat: f.id, kind: f.kind, s: at, s1: f.s1, nav: t ? t.replace('{name}', f.name).replace('{side}', sideT(f.side)) : null, trig, pri: f.kind === 'dest' ? 2 : ['sakuraT', 'lake', 'bridge', 'sea', 'onsen', 'mapleT'].includes(f.kind) ? 1 : 0 });
   }
-  for (const f of world.fac) out.push({ id: 'fac:' + f.id, feat: 'fac:' + f.id, kind: 'fac', fac: f, s: f.s - 140, s1: f.s, nav: NAV.fac[f.type].replace('{name}', f.name), trig: null, pri: 0 });
-  for (const f of world.fac) out.push({ id: 'facNear:' + f.id, kind: 'facNear', fac: f, s: f.s - kmToS(10), s1: f.s, nav: null, trig: 'facNear', pri: 0 });
-  out.push({ id: 'destNear', kind: 'destNear', s: ROUTE_LEN - kmToS(30), s1: ROUTE_LEN, nav: null, trig: 'destNear', pri: 2 });
+  for (const f of world.fac) out.push({ id: 'fac:' + f.id, feat: 'fac:' + f.id, kind: 'fac', fac: f, s: f.s - 140, s1: f.s, nav: NAV.fac[f.type] || NAV.fac[String(f.type).toUpperCase()], trig: null, pri: 0 });
+  for (const o of out) if (o.kind === 'fac' && o.nav) o.nav = o.nav.replace('{name}', o.fac.name);
+  for (const f of world.fac) out.push({ id: 'facNear:' + f.id, kind: 'facNear', fac: f, s: f.s - kmToS(10, world), s1: f.s, nav: null, trig: 'facNear', pri: 0 });
+  out.push({ id: 'destNear', kind: 'destNear', s: world.ROUTE_LEN - kmToS(30, world), s1: world.ROUTE_LEN, nav: null, trig: 'destNear', pri: 2 });
   return out.filter(o => isFinite(o.s)).sort((a, b) => a.s - b.s);
 }
 // ---- 天気の変化の予定（季節ごと。s は実距離。開始直後・施設の直前・目的地の直前は避ける） ----
 function weatherPlan(world, R) {
-  const se = world.season, avoid = s => world.fac.some(f => s > f.s - 500 && s < f.s + 520) || s > ROUTE_LEN - 900 || s < 600, out = [];
-  const pick = (a, b) => { for (let i = 0; i < 40; i++) { const s = kmToS(a) + R() * (kmToS(b) - kmToS(a)); if (!avoid(s)) return s; } return kmToS(a); };
+  const se = ambienceSeason(world.season), avoid = s => world.fac.some(f => s > f.s - 500 && s < f.s + 520) || s > world.ROUTE_LEN - 900 || s < 600, out = [];
+  const pick = (a, b) => { for (let i = 0; i < 40; i++) { const s = kmToS(a, world) + R() * (kmToS(b, world) - kmToS(a, world)); if (!avoid(s)) return s; } return kmToS(a, world); };
+  if (world.season === 'shutoko') { out.push({ type: 'shower', s: pick(12, 16) }, { type: 'cloud', s: pick(27, 31) }); return out.sort((a,b)=>a.s-b.s); }
   if (se === 'spring') { out.push({ type: 'shower', s: pick(120, 180) }); out.push({ type: 'cloud', s: pick(300, 330) }); }
   if (se === 'summer') { out.push({ type: 'cumulus', s: pick(60, 100) }); out.push({ type: 'shower', s: pick(230, 280) }); }
   if (se === 'autumn') { out.push({ type: 'cloud', s: pick(50, 80) }); out.push({ type: 'shower', s: pick(150, 190) }); }
@@ -52,7 +53,7 @@ const KID_FIRST = ['castle', 'tunnel', 'bridge', 'sea', 'rainbow', 'snowwall', '
 
 export class LDEvents {
   constructor({ world, season, party, st }) {
-    this.world = world; this.season = season; this.party = party || []; this.st = st; this.opts = { talk: true, nav: true, radio: true };
+    this.world = world; this.season = ambienceSeason(season); this.party = party || []; this.st = st; this.opts = { talk: true, nav: true, radio: true };
     const ev = st.ev = st.ev && typeof st.ev === 'object' ? st.ev : {};
     // 既定値で補う（古いセーブ互換）
     for (const [k, v] of Object.entries({ used: [], radio: [], nav: [], spots: [], req: null, reqN: 0, fatT: -1, eco: null, trk: 0, seed: hash(String(st.startAt || 1) + season) })) if (ev[k] == null || (Array.isArray(v) && !Array.isArray(ev[k])) || (typeof v === 'number' && typeof ev[k] !== 'number')) ev[k] = v; // 型の違う古い値も既定値に

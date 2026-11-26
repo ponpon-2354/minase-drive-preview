@@ -89,7 +89,7 @@ const DEST = { spring: '桜ヶ丘城', summer: '青凪高原', autumn: '楓見�
 // ======== 場面の組み立て ========
 // 返す値：{ env: GB, dyn: [{ g, m(t) }], actors: [{ ch, at:[x,y,z], yaw, base:'sit'|'floor'|..., poses:{name:opt}, act(t, talking) }], shots: [...], light, particles, title }
 function sceneRest(R, season, party, fac, rnd) {
-  const n = party.length, g = new GB(), type = fac.type, wood = type === 'MICHI', PA = type === 'PA';
+  const n = party.length, g = new GB(), type = fac.type, wood = type === 'MICHI', PA = type === 'PA' || type === 'pa';
   const floorLay = patternLay(R, wood ? 'wood' : 'tile');
   const actors = [], dyn = [];
   if (PA) { // PA：展望スペースのベンチ（外）

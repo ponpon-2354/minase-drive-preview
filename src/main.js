@@ -19,6 +19,7 @@ import { LDSetup, renderClear } from './ld_ui.js?v=0.9.3';
 import { buildChar, buildPassengersInCar, driverChar, SEASON_NAMES } from './passengers.js?v=0.9.3';
 import { loadLD, getClears, loadLDPrefs, saveLDPrefs } from './save.js?v=0.9.3';
 import { LDMusic } from './ld_music.js?v=0.9.3';
+import { ambienceSeason } from './ld_world.js?v=0.9.3';
 // v0.7.0 長距離ドライブ：LD（進行中のドライブ）、cut（再生中のムービー）、ldSetup（設定画面）
 let LD = null, cut = null, ldSetup = null, ldPrev = null, ldSv = null, mmLabels = null;
 // v0.8.0：長距離専用BGM（修正102・103）と、その設定（BGM・同乗者のセリフ・ラジオ案内のON/OFF。端末に保存）
@@ -962,7 +963,7 @@ function renderLDSet(dt, aspect) {
   const pM = M4.trs(0, 0, 0, selYaw, 0, 0), eye = [5.2, 2.0, 5.0], port = aspect < 1;
   const view = M4.lookAt(eye, [0.6, 0.5, 0], [0, 1, 0]), proj = M4.persp(port ? 1.05 : 0.72, aspect, 0.1, 200);
   if (port) proj[9] = -0.38; else proj[8] = 0.36; // 設定パネルに隠れない位置に寄せる
-  const vp = M4.mul(proj, view), sea = ldPv ? ldPv.season : 'spring';
+  const vp = M4.mul(proj, view), sea = ambienceSeason(ldPv ? ldPv.season : 'spring');
   const fog = { spring: [0.2, 0.16, 0.18], summer: [0.1, 0.16, 0.22], autumn: [0.2, 0.13, 0.08], winter: [0.17, 0.19, 0.24] }[sea];
   R.frame({ vp, fog, sun: norm([0.4, 0.8, 0.5]), sunC: [1, 0.97, 0.92], amb: [0.45, 0.46, 0.52], cam: eye, fogN: 30, fogF: 120, night: 0, wet: 0, hOn: 0, hP: [0, 0, 0], hD: [0, 0, 1] });
   R.draw(meshes.studio);
@@ -976,14 +977,14 @@ function renderLDSet(dt, aspect) {
 }
 async function startLD(cfg, sv) {
   state = 'load'; show('load'); setHud(false); if (cut) { cut.finish(); cut = null; }
-  $('lmsg').textContent = `${SEASON_NAMES[cfg.season]}の長距離ドライブ（400km）を準備中…`; $('lbar').style.width = '10%'; await frame(); await frame();
+  $('lmsg').textContent = `${SEASON_NAMES[cfg.season]}の長距離ドライブ（${cfg.season === 'shutoko' ? '35km' : '400km'}）を準備中…`; $('lbar').style.width = '10%'; await frame(); await frame();
   // 市街地の読み込み済みチャンク・遠景を解放してメモリを空ける（市街地のセーブはそのまま）
   for (const c of city.chunks) { if (c.m) city.freeChunk(c, R); c.pend = null; if (c.far) { R.free(c.far); c.far = null; } if (c.farT) { R.free(c.farT); c.farT = null; } }
   for (const k of ['global', 'gdecal', 'mtn']) if (meshes[k]) R.free(meshes[k]);
   const ctx = { R, $, snd, toast, getMin: () => gameMin, setMin: m => { gameMin = m; }, get player() { return player; }, onMovie: startMovie, onClear: showClear };
   LD = new LongDrive(ctx, cfg, sv);
   LD.ev.opts.talk = LDP.talk; LD.ev.opts.radio = LDP.radio; LD.ev.opts.nav = LDP.nav;
-  ldMusic.setSeason(cfg.season); ldMusic.setOn(LDP.bgm); ldMusic.setVol(LDP.vol); ldMusic.onTrack = onLDTrack;
+  ldMusic.setSeason(ambienceSeason(cfg.season)); ldMusic.setOn(LDP.bgm); ldMusic.setVol(LDP.vol); ldMusic.onTrack = onLDTrack;
   city = LD.city; traffic = LD.traffic; peds = LD.peds; traffic.peds = peds; nav = LD.nav;
   $('lbar').style.width = '35%'; $('lmsg').textContent = '道路と景色を組み立て中…'; await frame();
   for (const d of city.dyn) R.setLayer(d.lay, renderLayer(d.draw)); R.mips();

@@ -81,6 +81,7 @@ export const NAV = {
   snowwall: 'この先は雪の山道。両側に高い{name}が続きます',
   onsen: 'まもなく{name}に入ります。温泉街の家並みが続きます',
   town: 'まもなく{name}に入ります。古い町並みが残る通りです',
+  landmark: 'まもなく{name}が見えてきます。周囲の道路案内に注意してください',
   dest: { spring: '前方に{name}が見えてきます', summer: '{name}が近づいてきました。高原の景色をお楽しみください', autumn: '{name}が近づいてきました。山あいの紅葉が見ごろです', winter: '{name}が近づいてきました。雪の温泉郷です' },
   fac: { SA: 'この先、{name}があります。フードコートとレストランがあります', PA: 'この先、{name}があります。売店と展望スペースがあります', MICHI: 'この先、{name}があります。物産館とレストランがあります' }
 };
@@ -112,4 +113,4 @@ export const FOOD = {
 };
 export const CAT = { 山菜そば: 'meal', 桜もち: 'sweet', 緑茶: 'drink', 冷やし中華: 'meal', かき氷: 'cold', アイスコーヒー: 'drink', 芋煮定食: 'meal', 栗ごはん: 'meal', ほうじ茶: 'drink', 味噌ラーメン: 'meal', 鍋焼きうどん: 'meal', ホットココア: 'drink', たけのこご飯定食: 'meal', 山菜の天ぷら: 'meal', 桜茶: 'drink', 焼きとうもろこし: 'snack', 夏野菜カレー: 'meal', 地元のサイダー: 'drink', 新そば: 'meal', きのこ汁: 'hot', りんごジュース: 'drink', きりたんぽ鍋: 'meal', おでん: 'hot', 甘酒: 'drink', おにぎり: 'meal', さくらソフト: 'cold', 缶コーヒー: 'drink', ソフトクリーム: 'cold', ラムネ: 'drink', スポーツドリンク: 'drink', 焼きいも: 'sweet', 肉まん: 'hot', 温かいお茶: 'drink', おしるこ: 'sweet', ホットコーヒー: 'drink', いちご大福: 'sweet', 山菜おこわ: 'meal', 栗おこわ: 'meal', ココア: 'drink' };
 // 休憩ムービーで食べるもの：施設と季節のメニュー（お願いがかなった施設ではお願いの品も加える）
-export function mealFor(type, season, req = null) { const m = (MENU[type] || MENU.SA)[season] || MENU.SA.spring; const items = m.slice(); if (req && !items.includes(req)) items.push(req); return { items, main: m[0], sweet: m[1], drink: m[2], req: req || null }; }
+export function mealFor(type, season, req = null) { const key = String(type).toUpperCase(), m = (MENU[key] || MENU.SA)[season] || MENU.SA.spring; const items = m.slice(); if (req && !items.includes(req)) items.push(req); return { items, main: m[0], sweet: m[1], drink: m[2], req: req || null }; }
