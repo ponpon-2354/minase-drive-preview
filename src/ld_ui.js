@@ -8,10 +8,12 @@ const SEASON_TEXT = {
   summer: ['海岸バイパス・青い海・海辺の橋・海岸トンネル・港町', '高原の道をのぼって、コテージで過ごす'],
   autumn: ['紅葉の山・渓谷と渓流・紅葉トンネル・展望台', '山あいの集落を抜け、木造の宿で紅葉を眺める'],
   winter: ['雪の山道・雪の壁・雪化粧の森・凍った湖', '雪の橋とトンネルを越えて、湯けむりの温泉郷へ']
+  ,shutoko: ['一之江から都心環状線、山手トンネルを抜ける首都高ドライブ', '箱崎PA・永福PAでひと休みし、中央道から調布ICへ']
 };
 // 季節の見どころの絵（キャンバスに描く。季節ごとに色と景色を変える）
 export function paintSeason(cv, season) {
   const c = cv.getContext('2d'), W = cv.width, H = cv.height, hz = H * 0.52;
+  if (season === 'shutoko') { c.fillStyle='#b9d2e7'; c.fillRect(0,0,W,H); c.fillStyle='#70818b'; for(let i=0;i<8;i++){const x=i*29;c.fillRect(x,hz-12-(i%3)*10,20, H-hz+12+(i%3)*10);} c.fillStyle='#50545a'; c.beginPath(); c.moveTo(W*.28,H); c.lineTo(W*.43,hz+10); c.lineTo(W*.57,hz+10); c.lineTo(W*.75,H); c.fill(); c.fillStyle='#85898d'; c.fillRect(W*.12,H*.7,W*.76,7); c.fillRect(W*.25,H*.56,W*.5,6); c.fillStyle='#d9dde0'; c.fillRect(W*.14,H*.7,5,H*.3); c.fillRect(W*.83,H*.7,5,H*.3); c.fillStyle='#f6d16e'; c.fillRect(W*.48,hz+11,3,H*.3); return; }
   const sky = { spring: ['#9cc8f0', '#f3dbe6'], summer: ['#3d8de0', '#bfe4ff'], autumn: ['#7fa6d6', '#f2d6a8'], winter: ['#8ea2bf', '#e6ecf5'] }[season];
   let g = c.createLinearGradient(0, 0, 0, hz); g.addColorStop(0, sky[0]); g.addColorStop(1, sky[1]); c.fillStyle = g; c.fillRect(0, 0, W, hz);
   const mtn = (y, h, col, seed) => { c.fillStyle = col; c.beginPath(); c.moveTo(0, hz); for (let x = 0; x <= W; x += W / 12) c.lineTo(x, y - Math.abs(Math.sin(x * 0.02 + seed)) * h); c.lineTo(W, hz); c.fill(); };
@@ -53,7 +55,7 @@ export class LDSetup {
     body.addEventListener('click', e => { const b = e.target.closest('button'); if (b) this.onClick(b); });
   }
   open(preset) {
-    if (preset) { this.cfg = JSON.parse(JSON.stringify({ season: preset.season, n: preset.passengers.length + 1, passengers: preset.passengers })); if (preset.otherSeason) { const ks = Object.keys(SEASONS); this.cfg.season = ks[(ks.indexOf(preset.season) + 1) % 4]; this.fixOutfits(); } }
+    if (preset) { this.cfg = JSON.parse(JSON.stringify({ season: preset.season, n: preset.passengers.length + 1, passengers: preset.passengers })); if (preset.otherSeason) { const ks = Object.keys(SEASONS).filter(k => k !== 'shutoko'); this.cfg.season = ks[(ks.indexOf(preset.season) + 1) % ks.length]; this.fixOutfits(); } }
     this.view = 'edit'; this.err = ''; this.sync(); this.render();
   }
   newP(i) { const used = this.cfg.passengers.map(p => p.seat), seat = SEAT_OPTS.map(s => s[0]).find(s => !used.includes(s)) || 'rearL'; const age = i === 0 ? '30' : 'child', sex = i === 0 ? 1 : 0; return { ch: { sex, age, outfit: defaultOutfit(this.cfg.season, age), seed: 21 + i * 7 }, seat: age === 'child' && seat === 'front' ? 'rearL' : seat }; }
@@ -103,10 +105,10 @@ export class LDSetup {
       const rows = [['季節', SEASON_NAMES[c.season]], ['人数', `${c.n}人`], ['運転者', this.ui.driverText()],
         ...c.passengers.map((p, i) => [`同乗者${i + 1}`, `${passengerLabel(p.ch)}・${outfitName(p.ch.outfit)}`]),
         ['座席', ['運転席：あなた', ...c.passengers.map((p, i) => `${seatName(p.seat)}：同乗者${i + 1}${p.ch.age === 'child' ? '（ジュニアシート）' : ''}`)].join('<br>')],
-        ['車両', this.ui.carText()], ['出発', '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${D.dest}（約400km・到着予定 14:00 ごろ）`],
-        ['休憩施設', D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
+        ['車両', this.ui.carText()], ['出発', c.season === 'shutoko' ? '一之江入口 09:00' : '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${D.dest}（約${c.season === 'shutoko' ? 35 : 400}km・到着予定 ${c.season === 'shutoko' ? '10:00' : '14:00'} ごろ）`],
+        ['休憩施設', c.season === 'shutoko' ? `${D.fac[0]}（約8.5km）<br>${D.fac[1]}（約27km）` : D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
       body.innerHTML = `<h2>確認</h2><table class="ldt">${rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</table>
-        <p class="small">時間は現実の45分でゲーム内の24時間（現実1分＝ゲーム内32分）。距離も同じ割合で縮めています（実際の走行1km＝表示32km）。連続運転4時間を目安に休憩しましょう。</p>
+        <p class="small">${c.season === 'shutoko' ? '首都高コースは表示距離と時計を実車相当に設定しています。' : '時間は現実の45分でゲーム内の24時間（現実1分＝ゲーム内32分）。距離も同じ割合で縮めています（実際の走行1km＝表示32km）。'}連続運転4時間を目安に休憩しましょう。</p>
         <div class="btns"><button data-a="edit">設定にもどる</button><button data-a="start" class="pri">ドライブ開始</button></div>`;
       return;
     }
