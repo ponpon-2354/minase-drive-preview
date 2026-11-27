@@ -286,7 +286,7 @@ function initUI() {
   // キーボードのKキーも同じ条件（速度が安定してから入る）。押した時点で条件を満たしていれば1.0秒後に作動
   keyHold = () => { if (!keyKeepT) return; const now = performance.now(); if (player.cruiseV != null || player.gear !== 'D') { keyKeepT = 0; return; } if (!keepCond()) { keyKeepT = now; return; } if (now - keyKeepT >= 1000) { keyKeepT = 0; engageKeep(); } else if (now - keyKeepT > 8000) keyKeepT = 0; };
   const tap = (id, f) => $(id).addEventListener('pointerdown', e => { e.preventDefault(); snd.init(); f(); });
-  tap('tBgm', cycleBgm); tap('ldNextB', ldNext); tap('ldBgmB', cycleBgm); $('ldSong').addEventListener('pointerdown', e => { e.preventDefault(); snd.init(); ldNext(); }); tap('tCam', cycleCam); tap('tLight', cycleLight); tap('tWL', () => setWink(-1)); tap('tWR', () => setWink(1)); tap('bDR', toggleRev); tap('tMenu', pause); tap('tMap', openMap);
+  tap('tBgm', cycleBgm); tap('ldNextB', ldNext); tap('ldBgmB', cycleBgm); $('ldSong').addEventListener('pointerdown', e => { e.preventDefault(); snd.init(); ldNext(); }); tap('tCam', cycleCam); tap('tLight', cycleLight); tap('tAcc', toggleACC); tap('tWL', () => setWink(-1)); tap('tWR', () => setWink(1)); tap('bDR', toggleRev); tap('tMenu', pause); tap('tMap', openMap);
   $('mm').style.pointerEvents = 'auto'; $('mm').addEventListener('pointerdown', e => { e.preventDefault(); mmZoom = (mmZoom + 1) % 3; toast('ミニマップ：' + ['標準', '広域', '詳細'][mmZoom], 900); });
   $('mapClose').onclick = closeMap; $('mapClear').onclick = () => { nav.clear(); toast('目的地を消しました'); };
   addEventListener('keydown', e => {
@@ -367,7 +367,7 @@ function applySettings() {
   S.bgm = $('sBgm').value; S.bgmVol = +$('sBgmVol').value; music.mode = S.bgm; music.setVol(S.bgmVol);
   LDP.bgm = $('sLdBgm').value === '1'; LDP.talk = $('sLdTalk').value === '1'; LDP.radio = $('sLdRadio').value === '1'; LDP.nav = $('sLdNav').value === '1'; LDP.vol = +$('sLdVol').value; LDP.steer = $('sSteer').value === 'buttons' ? 'buttons' : 'wheel'; saveLDPrefs(LDP); steerUI();
   if (ldMusic) { ldMusic.setVol(LDP.vol); if (LD) ldMusic.setOn(LDP.bgm); } if (LD) { LD.ev.opts.talk = LDP.talk; LD.ev.opts.radio = LDP.radio; LD.ev.opts.nav = LDP.nav; markToggles(); ldSongUI(); }
-  snd.setVol(S.vol); player.assist = !!S.assist; player.accOn = !!S.acc; if (!player.accOn) player.accV = null; // perfK（自動調整の結果）は設定変更でリセットしない
+  snd.setVol(S.vol); player.assist = !!S.assist; player.accOn = !!S.acc; if (!player.accOn) player.accV = null; markToggles(); // perfK（自動調整の結果）は設定変更でリセットしない
 }
 // ---------- ワープ（最寄り道路の左端車線・NPC/障害物を避ける） ----------
 function warpPos(x, z, yaw) {
@@ -450,7 +450,8 @@ function cycleBgm() {
 }
 function cycleCam() { camMode = (camMode + 1) % 3; toast(['三人称視点', '運転席視点', 'ボンネット視点'][camMode], 900); markToggles(); }
 function cycleLight() { lightMode = (lightMode + 1) % 3; toast('ライト：' + ['自動', 'ON', 'OFF'][lightMode], 900); markToggles(); }
-function markToggles() { document.body.classList.toggle('cock', camMode === 1); $('tCam').textContent = ['視点:後方', '視点:運転席', '視点:ボンネット'][camMode]; $('tLight').textContent = 'ライト:' + ['自動', 'ON', 'OFF'][lightMode]; $('tLight').classList.toggle('on', lightMode === 1); $('ldBgmB').textContent = LDP.bgm ? 'BGM ON' : 'BGM OFF'; $('ldBgmB').classList.toggle('on', LDP.bgm); $('tBgm').textContent = LD ? (LDP.bgm ? 'BGM:ON' : 'BGM:OFF') : S.bgm === 'off' ? 'BGM:OFF' : 'BGM'; }
+function toggleACC() { S.acc = S.acc ? 0 : 1; player.accOn = !!S.acc; if (!player.accOn) player.accV = null; try { localStorage.setItem('minase-drive-acc', String(S.acc)); } catch (e) { /* storage unavailable */ } markToggles(); toast('追従走行：' + (S.acc ? 'ON' : 'OFF'), 1100); }
+function markToggles() { document.body.classList.toggle('cock', camMode === 1); $('tCam').textContent = ['視点:後方', '視点:運転席', '視点:ボンネット'][camMode]; $('tLight').textContent = 'ライト:' + ['自動', 'ON', 'OFF'][lightMode]; $('tLight').classList.toggle('on', lightMode === 1); $('tAcc').classList.toggle('on', !!S.acc); $('tAcc').textContent = S.acc ? 'ACC:ON' : 'ACC'; $('ldBgmB').textContent = LDP.bgm ? 'BGM ON' : 'BGM OFF'; $('ldBgmB').classList.toggle('on', LDP.bgm); $('tBgm').textContent = LD ? (LDP.bgm ? 'BGM:ON' : 'BGM:OFF') : S.bgm === 'off' ? 'BGM:OFF' : 'BGM'; }
 function setWink(d) { wink = wink === d ? 0 : d; winkYaw = player.yaw; }
 function syncGear() { if (!$('bDR')) return; const rv = player && player.gear === 'R'; $('bDR').textContent = rv ? 'R' : 'D'; $('bDR').classList.toggle('rev', !!rv); $('gear').classList.toggle('rev', !!rv); $('gear').textContent = rv ? 'R' : 'D'; $('spd').classList.toggle('rev', !!rv); }
 function toggleRev() { player.gearReq = true; } // 結果は player.gearResult で受け取り、gearFeedback() で知らせる
@@ -598,10 +599,10 @@ function tick(dt) {
       }
       let targetV = player.cruiseV;
       if (lead) {
-        const desiredGap = 9 + 1.5 * lead.speed;
-        const gapTarget = Math.max(0, lead.speed + (lead.gap - desiredGap) * 0.4);
-        const stopTarget = Math.sqrt(Math.max(0, 2 * 2.4 * (lead.gap - 5)));
-        targetV = Math.min(targetV, gapTarget, stopTarget);
+        const desiredGap = 6 + 1.05 * lead.speed;
+        const gapTarget = lead.speed + (lead.gap - desiredGap) * 0.35;
+        const matchTarget = player.vx > lead.speed ? Math.sqrt(lead.speed * lead.speed + 2 * 2.2 * Math.max(0, lead.gap - 6)) : Infinity;
+        targetV = Math.max(0, Math.min(targetV, gapTarget, matchTarget));
       }
       const oldV = Number.isFinite(player.accV) ? player.accV : Math.min(player.cruiseV, Math.max(0, player.vx));
       player.accV = oldV + clamp(targetV - oldV, -2.4 * dt, 1.2 * dt);

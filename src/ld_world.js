@@ -288,8 +288,9 @@ export class LongWorld {
     this.add(K(.48),g=>{const s=K(.48),p=this.pos(s,0),top=p[1]+36;g.s.box(p[0]-2,p[1]-2,p[2]-2,p[0]+2,top,p[2]+2,{c:[.68,.7,.72]});for(let d=-36;d<=36;d+=6){const q=this.pos(K(.48)+d,0);g.s.beam([p[0],top,p[2]],[q[0],q[1]+.5,q[2]],.5,{c:[.93,.94,.95]});}});
     // 両国国技館：低い大建築と緑の寄棟屋根をJCT右下に置く。
     this.add(K(8.4),g=>{const s=K(8.4),p=this.pos(s,-27),y=p[1]-4;g.s.box(p[0]-23,y,p[2]-27,p[0]+23,y+13,p[2]+27,{c:[.76,.74,.67]});g.s.gable(p[0]-24,p[2]-28,p[0]+24,p[2]+28,y+13,9,{c:[.22,.38,.26],lay:L.ROOF,tw:2,gc:[.76,.74,.67]});});
-    // 中央道区間：低い遮音壁の外に街路樹を連ね、走行中に緑が壁上へ見えるようにする。
-    for(let ss=K(33.5);ss<K(41.3);ss+=22) this.add(ss,g=>{for(const side of [-1,1]){const s=ss+4+(this.R()-.5)*8,u=side*(14+this.R()*3),p=this.pos(s,u),y=this.terrainH(s,u);this.tree(g.s,'green',p[0],y,p[2],1.7+this.R()*.7,this.R);}});
+    // 実在する公園・緑地だけを道路脇の樹木の塊として配置する。
+    const groves=[[13.8,1,600,42],[28.6,1,1000,70],[34.2,-1,300,34],[37.5,-1,360,38],[39.8,1,800,55]];
+    for(const [km,side,len,width] of groves){const center=K(km),half=len/(2*this.DIST_SCALE);for(let ss=center-half;ss<center+half;ss+=34)this.add(ss,g=>{for(let i=0;i<3;i++){const s=ss+this.R()*28,u=side*(15+this.R()*width),p=this.pos(s,u),y=this.terrainH(s,u);this.tree(g.s,'green',p[0],y,p[2],1.6+this.R()*.8,this.R);}});}
     // 本線通過型のETC料金所。側道へ進入しない門型設備。
     for (const [km, label] of [[6.4, '錦糸町本線料金所'], [14.05, '料金所'], [37.5, '三鷹本線料金所']]) {
       const s = K(km), sign = this.greenSign([label, 'ETC'], { scale: .8 });
@@ -399,30 +400,52 @@ export class LongWorld {
   shutokoFabric(g,s0,s1,side,R) {
     const K=km=>km*1000/this.DIST_SCALE, s=(s0+s1)/2;
     let kind,lo,hi,density;
-    if(s<K(1.8)){kind='warehouse';lo=5;hi=10;density=.68;}
-    else if(s<K(8.4)){kind='mixed';lo=5;hi=14;density=.9;}
-    else if(s<K(9.7)){if(side<0)return;kind='mixed';lo=8;hi=20;density=.9;}
-    else if(s<K(16.4)){kind='office';lo=15;hi=45;density=.96;}
-    else if(s<K(23.5)){kind='signage';lo=10;hi=30;density=.94;}
+    if(s<K(1.8)){kind='residential';lo=5;hi=9;density=.95;}
+    else if(s<K(8.4)){
+      if(side<0){
+        // 隅田川の対岸に公園と低層市街を並べる。
+        if(s<K(1.8)||s>K(8.4)||this.inBridgeS(s))return;
+        kind='farbank';lo=6;hi=9;density=.72;
+      } else {kind='residential';lo=6;hi=10;density=.96;}
+    }
+    else if(s<K(9.7)){if(side<0)return;kind='residential';lo=6;hi=10;density=.9;}
+    else if(s<K(16.4)){
+      if(s>=K(13.55)&&s<K(14.05))return;
+      kind='office';lo=side>0?15:25;hi=side>0?30:45;density=.96;
+    }
+    else if(s<K(23.5)){kind=side>0?'residential':'office';lo=side>0?6:15;hi=side>0?15:35;density=.94;if(side<0&&s>=K(21.5)&&s<K(22.5)){lo=28;hi=42;}}
     else if(s<K(27.5)) return;
-    else if(s<K(33.5)){kind='residential';lo=7;hi=10;density=.68;}
-    else if(s<K(41.3)){kind='green';lo=5;hi=12;density=.3;}
+    else if(s<K(33.5)){
+      if(side>0&&s>=K(28.6)&&s<K(29.6))return;
+      kind='residential';lo=5;hi=9;density=.96;
+    }
+    else if(s<K(41.3)){
+      if((side<0&&((s>=K(34.0)&&s<K(34.4))||(s>=K(37.25)&&s<K(37.75))))||(side>0&&s>=K(39.8)&&s<K(40.6)))return;
+      kind='residential';lo=5;hi=8;density=.98;
+    }
     else return;
     if(this.inTunnelS(s)||this.inBridgeS(s))return;
     // 川・水路・公園の側は完全に空ける。
     const zw=this.zoneW(s,side), blocked=zw.river>.18||zw.park>.18||zw.tunnel>.18;
-    if(blocked)return;
+    if(blocked&&kind!=='farbank')return;
+    if(kind==='farbank'){
+      const a=this.pos(s0,-72),b=this.pos(s0,-91),c=this.pos(s1,-91),d=this.pos(s1,-72),y0=this.roadY(s0)-6,y1=this.roadY(s1)-6;
+      g.s.quadN([a[0],y0,a[2]],[b[0],y0,b[2]],[c[0],y1,c[2]],[d[0],y1,d[2]],[0,1,0],{c:[.3,.58,.34],lay:L.FOREST});
+    }
     // 特徴物の前後150m、同じ側はその高さを超える街並みを置かない。
     const landmarks=[[17.7,-1,140],[28.2,-1,165],[20,-1,92],[23.5,1,0],[10.7,1,22],[12.7,-1,30],[14.3,-1,0],[15.95,1,122],[8.4,-1,13],[14.35,-1,98],[14.65,-1,118],[14.78,-1,106],[29.348,-1,80],[40.244,-1,90]];
     let cap=Infinity;
     for(const [km,ls,h] of landmarks)if(ls===side&&Math.abs(s-K(km))<150)cap=Math.min(cap,h);
     if(R()>density)return;
-    const ss=s0+6+R()*Math.max(2,s1-s0-12), u=side*(kind==='residential'?18+R()*15:24+R()*30);
-    const p=this.pos(ss,u),w=kind==='warehouse'?12+R()*10:8+R()*11,d=8+R()*13;
-    let h=lo+R()*(hi-lo);if(h>cap)h=Math.max(lo,cap-1);
+    const lowHomes=kind==='residential'&&(s<K(1.8)||(s>=K(1.8)&&s<K(8.4)&&side>0)||(s>=K(27.5)&&s<K(41.3)));
+    const reps=kind==='residential'?2:1;
+    for(let k=0;k<reps;k++){
+    const ss=s0+4+(k+.5)/reps*Math.max(2,s1-s0-8)+R()*3, u=side*(kind==='farbank'?95+R()*20:kind==='residential'&&lowHomes?17+R()*9:kind==='residential'?18+R()*15:24+R()*30);
+    const p=this.pos(ss,u),w=lowHomes?7+R()*6:kind==='warehouse'?12+R()*10:8+R()*11,d=lowHomes?7+R()*6:8+R()*13;
+    let h=lo+R()*(hi-lo);if(lowHomes)h=7+R()*4;if(kind==='farbank')h=12+R()*5;if(h>cap)h=Math.max(lo,cap-1);
     const corners=[[p[0]-w/2,p[2]-d/2],[p[0]+w/2,p[2]-d/2],[p[0]-w/2,p[2]+d/2],[p[0]+w/2,p[2]+d/2]];
-    if(h<lo||!this.footprintClear(corners,ss,13))return;
-    const y=this.terrainH(ss,u), colors=kind==='warehouse'?[[.82,.82,.79],[.75,.77,.77],[.86,.84,.8]]:kind==='office'?[[.55,.62,.67],[.65,.69,.7],[.72,.73,.71]]:kind==='residential'?[[.79,.76,.7],[.72,.74,.73],[.83,.81,.76]]:s<K(8.4)?[[.84,.83,.79],[.78,.8,.8],[.76,.65,.59]]:[[.7,.71,.7],[.76,.74,.7],[.62,.67,.69]], c=colors[(R()*colors.length)|0];
+    if(h<lo||!this.footprintClear(corners,ss,lowHomes?10.5:13))continue;
+    const y=lowHomes?this.roadY(ss)-1.5:kind==='farbank'?this.roadY(ss)-6:this.terrainH(ss,u), colors=kind==='warehouse'?[[.82,.82,.79],[.75,.77,.77],[.86,.84,.8]]:kind==='office'?[[.55,.62,.67],[.65,.69,.7],[.72,.73,.71]]:kind==='residential'?[[.79,.76,.7],[.72,.74,.73],[.83,.81,.76]]:[[.84,.83,.79],[.78,.8,.8],[.76,.65,.59]], c=colors[(R()*colors.length)|0];
     g.s.box(p[0]-w/2,y,p[2]-d/2,p[0]+w/2,y+h,p[2]+d/2,{c,side:{lay:kind==='warehouse'?L.OFFICE:L.OFFICE2,tw:5,th:12}});
     if(kind==='warehouse'){
       g.s.box(p[0]-w/2,y+h-.35,p[2]-d/2,p[0]+w/2,y+h+.15,p[2]+d/2,{c:[.88,.88,.86]});
@@ -433,7 +456,7 @@ export class LongWorld {
       for(let yy=y+2.2;yy<y+h-1;yy+=3.2)g.s.box(p[0]-w/2+.6,yy,p[2]+face*(d/2+.04),p[0]+w/2-.6,yy+.55,p[2]+face*(d/2+.08),{c:kind==='office'?[.35,.54,.63]:[.4,.48,.51]});
       if(kind==='signage'&&R()<.4)g.s.box(p[0]-w/2,y+Math.min(h-2,5),p[2]+face*(d/2+.15),p[0]+w/2,y+Math.min(h-1,6.5),p[2]+face*(d/2+.2),{c:[[.84,.28,.2],[.18,.42,.62],[.85,.68,.2]][(R()*3)|0]});
     }
-    if(kind==='green'&&R()<.65)this.tree(g.s,'green',p[0]+w,p[1],p[2]+d,1.15,R);
+    }
   }
   shutokoJcts() {
     // カーブ外側のコンクリート壁に赤白の矢羽根を設置（黄黒板は分岐ノーズ側に限定）。
@@ -620,7 +643,10 @@ export class LongWorld {
       }
       // 水面（川・湖・海辺・渓流）
       const w = this.zoneW((s + e) / 2, side);
-      if (w.river > 0.3) this.water(g, s, e, side * 40, side * 95, this.roadY(s) - 3.8);
+      if (w.river > 0.3) {
+        if(this.season==='shutoko'&&side<0&&(s+e)/2>=1.8*1000/this.DIST_SCALE&&(s+e)/2<8.4*1000/this.DIST_SCALE&&!this.inBridgeS((s+e)/2)) this.water(g,s,e,-30,-75,this.roadY(s)-9);
+        else this.water(g, s, e, side * 40, side * 95, this.roadY(s) - 3.8);
+      }
       if (w.gorge > 0.3) this.water(g, s, e, side * 60, side * 90, this.roadY(s) - 36.5);
       if (w.valley > 0.3) this.water(g, s, e, side * 12, side * 160, this.roadY(s) - 20.5);
     }
@@ -671,9 +697,9 @@ export class LongWorld {
           if (best === 'sakuraT') { const c = this.pos(s, side * 7.5, 0); g.s.cbox(c[0], this.roadY(s) + 7.6, c[2], 5, 1.2, 6, { c: [1, 0.8, 0.88], lay: L.TREE }); } } }
       if (best === 'mapleT') for (let s = s0; s < s1; s += 9) { const p = this.pos(s, side * 12.5), y = this.terrainH(s, side * 12.5); this.tree(g.s, 'maple', p[0], y - 0.2, p[2], 1.7, R); const c = this.pos(s, side * 7.5, 0); g.s.cbox(c[0], this.roadY(s) + 7.4, c[2], 5, 1.2, 6, { c: R() < 0.5 ? [0.92, 0.3, 0.12] : [0.95, 0.62, 0.15], lay: L.TREE }); }
       // 森・雑木林
-      const forest = season === 'shutoko' ? (best === 'park' ? 3 : 0) : ({ mount: 9, cliff: 7, hills: 4, snowwall: 9, mapleT: 6, gorge: 5, plateau: 2, village: 2, lake: 1, snowfield: 2, valley: 3, river: 2, farm: 1, sakura: 1, town: 1, onsen: 2, harbor: 0, sea: 0, bay: 0, sakuraT: 2, park: 10 }[best] || 2);
+      const forest = season === 'shutoko' ? 0 : ({ mount: 9, cliff: 7, hills: 4, snowwall: 9, mapleT: 6, gorge: 5, plateau: 2, village: 2, lake: 1, snowfield: 2, valley: 3, river: 2, farm: 1, sakura: 1, town: 1, onsen: 2, harbor: 0, sea: 0, bay: 0, sakuraT: 2, park: 10 }[best] || 2);
       for (let k = 0; k < forest; k++) { const u = 18 + R() * (best === 'plateau' ? 120 : 160); const kind = season === 'winter' ? 'snowpine' : season === 'autumn' ? (R() < 0.75 ? 'maple' : 'pine') : season === 'spring' ? (R() < 0.25 ? 'sakura' : R() < 0.5 ? 'pine' : 'green') : best === 'plateau' ? (R() < 0.5 ? 'birch' : 'green') : R() < 0.4 ? 'pine' : 'green'; place(u, kind, 0.9 + R() * 0.6); }
-      if (best === 'river') for (let s = s0; s < s1; s += 16) { for (const u of [36, 100]) { const p = this.pos(s, side * u), y = this.terrainH(s, side * u); this.tree(g.s, season === 'spring' ? 'sakura' : 'green', p[0], y - 0.2, p[2], 1.3, R); } }
+      if (best === 'river' && season !== 'shutoko') for (let s = s0; s < s1; s += 16) { for (const u of [36, 100]) { const p = this.pos(s, side * u), y = this.terrainH(s, side * u); this.tree(g.s, season === 'spring' ? 'sakura' : 'green', p[0], y - 0.2, p[2], 1.3, R); } }
       // 集落・城下町・港町・温泉街の家並み
       if (['town', 'village', 'harbor', 'onsen'].includes(best) || (best === 'farm' && R() < 0.25)) {
         const n = best === 'farm' ? 1 : best === 'town' || best === 'onsen' ? 4 : 2;
