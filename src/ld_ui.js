@@ -49,13 +49,13 @@ export class LDSetup {
   // ui：{ $, driverText()（運転者の説明）, driver()（運転者の設定）, onChange(cfg), onStart(cfg), onBack() }
   constructor(ui) {
     this.ui = ui; this.view = 'edit'; this.err = '';
-    this.cfg = { season: 'spring', n: 2, passengers: [] };
+    this.cfg = { season: 'spring', direction: 'west', startKm: 0, n: 2, passengers: [] };
     const body = ui.$('ldsBody');
     body.addEventListener('change', e => this.onInput(e.target));
     body.addEventListener('click', e => { const b = e.target.closest('button'); if (b) this.onClick(b); });
   }
   open(preset) {
-    if (preset) { this.cfg = JSON.parse(JSON.stringify({ season: preset.season, n: preset.passengers.length + 1, passengers: preset.passengers })); if (preset.otherSeason) { const ks = Object.keys(SEASONS).filter(k => k !== 'shutoko'); this.cfg.season = ks[(ks.indexOf(preset.season) + 1) % ks.length]; this.fixOutfits(); } }
+    if (preset) { this.cfg = JSON.parse(JSON.stringify({ season: preset.season, direction: 'west', startKm: 0, n: preset.passengers.length + 1, passengers: preset.passengers })); if (preset.otherSeason) { const ks = Object.keys(SEASONS).filter(k => k !== 'shutoko'); this.cfg.season = ks[(ks.indexOf(preset.season) + 1) % ks.length]; this.fixOutfits(); } }
     this.view = 'edit'; this.err = ''; this.sync(); this.render();
   }
   newP(i) { const used = this.cfg.passengers.map(p => p.seat), seat = SEAT_OPTS.map(s => s[0]).find(s => !used.includes(s)) || 'rearL'; const age = i === 0 ? '30' : 'child', sex = i === 0 ? 1 : 0; return { ch: { sex, age, outfit: defaultOutfit(this.cfg.season, age), seed: 21 + i * 7 }, seat: age === 'child' && seat === 'front' ? 'rearL' : seat }; }
@@ -81,6 +81,7 @@ export class LDSetup {
     if (k === 'age') { c.passengers[i].ch.age = el.value; if (!outfitAllowed(c.passengers[i].ch.outfit, c.season, el.value)) c.passengers[i].ch.outfit = defaultOutfit(c.season, el.value); if (!seatAllowed(c.passengers[i].seat, el.value)) { this.fixSeats(); this.err = '子どもは助手席に座れないため、後席（ジュニアシート）に移しました'; } }
     else if (k === 'sex') c.passengers[i].ch.sex = +el.value;
     else if (k === 'outfit') c.passengers[i].ch.outfit = el.value;
+    else if (k === 'startKm') c.startKm = +el.value;
     else if (k === 'seat') { const old = c.passengers[i].seat, other = c.passengers.find((p, j) => j !== i && p.seat === el.value); c.passengers[i].seat = el.value;
       if (other) { const used = new Set(c.passengers.filter(p => p !== other).map(p => p.seat)); // 入れ替え。子どもが助手席に回る場合は空いている後席へ
         other.seat = seatAllowed(old, other.ch.age) && !used.has(old) ? old : SEAT_OPTS.map(q => q[0]).find(q => !used.has(q) && seatAllowed(q, other.ch.age));
@@ -89,7 +90,7 @@ export class LDSetup {
   }
   onClick(b) {
     const a = b.dataset.a;
-    if (a === 'season') { this.cfg.season = b.dataset.v; this.fixOutfits(); }
+    if (a === 'season') { this.cfg.season = b.dataset.v === 'shutoko-east' ? 'shutoko' : b.dataset.v; this.cfg.direction = b.dataset.v === 'shutoko-east' ? 'east' : 'west'; this.cfg.startKm = this.cfg.direction === 'east' ? 41.3 : 0; this.fixOutfits(); }
     else if (a === 'n') { this.cfg.n = +b.dataset.v; this.sync(); }
     else if (a === 'confirm') { const e = this.validate(); if (e) { this.err = e; } else this.view = 'confirm'; }
     else if (a === 'edit') this.view = 'edit';
@@ -98,15 +99,15 @@ export class LDSetup {
     if (a !== 'confirm' || this.view === 'confirm') this.err = a === 'confirm' ? '' : this.err;
     this.render(); this.ui.onChange(this.cfgOut());
   }
-  cfgOut() { return { season: this.cfg.season, driver: this.ui.driver(), passengers: this.cfg.passengers.map(p => ({ ch: { ...p.ch }, seat: p.seat })) }; }
+  cfgOut() { return { season: this.cfg.season, direction: this.cfg.direction, startKm: this.cfg.startKm || 0, driver: this.ui.driver(), passengers: this.cfg.passengers.map(p => ({ ch: { ...p.ch }, seat: p.seat })) }; }
   render() {
     const c = this.cfg, D = SEASONS[c.season], body = this.ui.$('ldsBody');
     if (this.view === 'confirm') {
-      const rows = [['季節', SEASON_NAMES[c.season]], ['人数', `${c.n}人`], ['運転者', this.ui.driverText()],
+      const rows = [['コース', c.direction === 'east' ? '首都高・東行き（調布→一之江）' : SEASON_NAMES[c.season]], ['人数', `${c.n}人`], ['運転者', this.ui.driverText()],
         ...c.passengers.map((p, i) => [`同乗者${i + 1}`, `${passengerLabel(p.ch)}・${outfitName(p.ch.outfit)}`]),
         ['座席', ['運転席：あなた', ...c.passengers.map((p, i) => `${seatName(p.seat)}：同乗者${i + 1}${p.ch.age === 'child' ? '（ジュニアシート）' : ''}`)].join('<br>')],
-        ['車両', this.ui.carText()], ['出発', c.season === 'shutoko' ? '一之江入口 09:00' : '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${D.dest}（約${c.season === 'shutoko' ? 41 : 400}km・到着予定 ${c.season === 'shutoko' ? '10:00' : '14:00'} ごろ）`],
-        ['休憩施設', c.season === 'shutoko' ? `${D.fac[0]}（約9.7km）` : D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
+        ['車両', this.ui.carText()], ['出発', c.season === 'shutoko' ? `${([[0,'一之江入口'],[1.8,'小松川'],[8.4,'両国'],[9.7,'箱崎'],[12.3,'銀座'],[15.9,'芝公園'],[19.3,'谷町'],[22.2,'渋谷'],[23.5,'大橋'],[27.5,'初台'],[31.3,'永福'],[33.5,'高井戸'],[37.9,'三鷹'],[41.3,'調布IC']].find(q => q[0] === +c.startKm) || [0,'一之江入口'])[1]} 09:00` : '水瀬東IC（長距離ドライブ専用バイパス入口）09:00'], ['目的地', `${c.direction === 'east' ? '一之江入口' : D.dest}（約${c.season === 'shutoko' ? 41 : 400}km・到着予定 ${c.season === 'shutoko' ? '10:00' : '14:00'} ごろ）`],
+        ['休憩施設', c.season === 'shutoko' ? (c.direction === 'east' ? '永福PA（東行き専用）' : `${D.fac[0]}（約9.7km）`) : D.fac.map((f, i) => `${f}（${[110, 200, 290][i]}km）`).join('<br>')]];
       body.innerHTML = `<h2>確認</h2><table class="ldt">${rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join('')}</table>
         <p class="small">${c.season === 'shutoko' ? '首都高コースは表示距離と時計を実車相当に設定しています。' : '時間は現実の45分でゲーム内の24時間（現実1分＝ゲーム内32分）。距離も同じ割合で縮めています（実際の走行1km＝表示32km）。'}連続運転4時間を目安に休憩しましょう。</p>
         <div class="btns"><button data-a="edit">設定にもどる</button><button data-a="start" class="pri">ドライブ開始</button></div>`;
@@ -118,7 +119,8 @@ export class LDSetup {
       <select data-k="outfit" data-i="${i}" aria-label="服装">${opt(OUTFIT_OPTS.map(o => [o[0], o[1]]), p.ch.outfit, id => outfitAllowed(id, c.season, p.ch.age))}</select>
       <select data-k="seat" data-i="${i}" aria-label="座席">${opt(SEAT_OPTS, p.seat, id => seatAllowed(id, p.ch.age))}</select></div>`).join('');
     body.innerHTML = `<h2>長距離ドライブ　旅の準備</h2>
-      <div class="lds">${Object.keys(SEASONS).map(s => `<button data-a="season" data-v="${s}" class="ldsc${s === c.season ? ' on' : ''}"><canvas width="200" height="110" data-s="${s}"></canvas><b>${SEASON_NAMES[s]}　→ ${SEASONS[s].dest}</b><span>${SEASON_TEXT[s][0]}</span></button>`).join('')}</div>
+      <div class="lds">${Object.keys(SEASONS).map(s => `<button data-a="season" data-v="${s}" class="ldsc${s === c.season && c.direction !== 'east' ? ' on' : ''}"><canvas width="200" height="110" data-s="${s}"></canvas><b>${SEASON_NAMES[s]}　→ ${SEASONS[s].dest}</b><span>${SEASON_TEXT[s][0]}</span></button>`).join('')}<button data-a="season" data-v="shutoko-east" class="ldsc${c.direction === 'east' ? ' on' : ''}"><canvas width="200" height="110" data-s="shutoko"></canvas><b>首都高・東行き（調布→一之江）</b><span>調布ICから都心を抜けて一之江入口へ</span></button></div>
+      ${c.season === 'shutoko' ? `<div class="ldn"><b>開始地点</b><select data-k="startKm" aria-label="開始地点">${[[0,'一之江入口'],[1.8,'小松川'],[8.4,'両国'],[9.7,'箱崎'],[12.3,'銀座'],[15.9,'芝公園'],[19.3,'谷町'],[22.2,'渋谷'],[23.5,'大橋'],[27.5,'初台'],[31.3,'永福'],[33.5,'高井戸'],[37.9,'三鷹'],[41.3,'調布IC']].map(([km,n])=>`<option value="${km}" ${(+c.startKm===km?'selected':'')}>${n}（${km}km）</option>`).join('')}</select></div>` : ''}
       <div class="small" style="margin:4px 0 8px">${SEASON_TEXT[c.season][1]}</div>
       <div class="ldn"><b>人数</b>${[1, 2, 3].map(n => `<button data-a="n" data-v="${n}" class="${n === c.n ? 'on' : ''}">${n}人${n === 1 ? '（ひとり旅）' : ''}</button>`).join('')}</div>
       <div class="small">運転者：${this.ui.driverText()}（タイトルの VEHICLE SELECT で変更）</div>

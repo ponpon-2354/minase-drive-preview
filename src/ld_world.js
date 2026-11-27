@@ -76,10 +76,10 @@ const smooth = t => t * t * (3 - 2 * t);
 const LM = o => ({ ...o, mat: (o.mat || 0) + 100 });
 const markLM = (gb, n0) => { const a = gb.a; for (let i = n0 + 11; i < a.length; i += 13) if (a[i] < 100) a[i] += 100; }; // GB の頂点（13要素。12番目が mat）
 export class LongWorld {
-  constructor(season) {
+  constructor(season, direction = 'west') {
     const W = Object.create(City.prototype); // City の当たり判定・チャンク・壁の処理を流用（市街地の生成は行わない）
     Object.assign(W, { nodes: [], edges: [], lots: [], aabbs: [], hash: new Map(), walls: [], whash: new Map(), chunks: [], sigHeads: [], pedHeads: [], surfaces: [], tunnels: [], driveways: [], dhash: new Map(), stats: {}, mm: { blds: [], lots: [], lanes: [], polys: [], water: [], green: [] }, global: new GB(), globalDecal: new GB(), mountains: new GB(), dyn: [], bridges: [] });
-    this.W = W; this.season = season; this.ambienceSeason = ambienceSeason(season); this.D = SEASONS[season]; this.ROUTE_LEN = this.D.routeLen || ROUTE_LEN; this.DIST_SCALE = this.D.distScale || DIST_SCALE; this.TIME_SCALE = this.D.timeScale || TIME_SCALE; this.FAC_KM = this.D.facKm || FAC_KM; this.R = rng({ spring: 11, summer: 22, autumn: 33, winter: 44, shutoko: 55 }[season]);
+    this.W = W; this.season = season; this.direction = direction; this.dir = direction === 'east' ? -1 : 1; this.ambienceSeason = ambienceSeason(season); this.D = this.direction === 'east' ? { ...SEASONS[season], name: '首都高・東行き（調布→一之江）', dest: '一之江入口', destLot: '一之江入口', fac: ['箱崎PA', '永福PA'] } : SEASONS[season]; this.ROUTE_LEN = this.D.routeLen || ROUTE_LEN; this.DIST_SCALE = this.D.distScale || DIST_SCALE; this.TIME_SCALE = this.D.timeScale || TIME_SCALE; this.FAC_KM = this.direction === 'east' ? [['eifuku','pa',31]] : (this.D.facKm || FAC_KM); this.R = rng({ spring: 11, summer: 22, autumn: 33, winter: 44, shutoko: 55 }[season]);
     this.buildRoute(); this.buildChunks(); this.facilities(); this.populate();
     // City と同じ名前で呼ばれるメソッド（main.js・player.js から使われる）を W に生やす
     const self = this;
@@ -233,7 +233,7 @@ export class LongWorld {
   }
   // 休憩施設の舗装の範囲（減速車線・駐車場・加速車線）にいれば施設を返す
   facAt(s, u) {
-    for (const f of this.fac || []) { const lz = s - f.s, lx = u * f.side;
+    for (const f of this.fac || []) { const lz = (s - f.s) * this.dir, lx = u * f.side;
       if (this.season === 'shutoko') { if (lz > -35 && lz < 75 && lx > 9 && lx < 21) return f; }
       else if (lz > -170 && lz < 420 && lx > 9.0 && lx < 13.6) { if (lz > -60 && lz < 290) return f; const t = lz < 0 ? (lz + 170) / 110 : (420 - lz) / 130; if (lx < 9.9 + 3.6 * clamp(t, 0, 1)) return f; }
       if (this.season !== 'shutoko' && lz > -5 && lz < 225 && lx >= 13.6 && lx < 112) return f; }
@@ -257,8 +257,8 @@ export class LongWorld {
   }
   // ---------- 生成 ----------
   facilities() {
-    const D = this.D; this.fac = this.FAC_KM.map(([id, type, km], i) => { const s = km * 1000 / this.DIST_SCALE; return { id, type, km, s, side: 1, name: D.fac[i], y: this.roadY(s + 110) }; });
-    this.endY = this.roadY(this.ROUTE_LEN);
+    const D = this.D; this.fac = this.FAC_KM.map(([id, type, km], i) => { const baseS = km * 1000 / this.DIST_SCALE, eastPA = id === 'eifuku', s = baseS; return { id, type, km, s, side: eastPA ? -1 : 1, name: eastPA ? '永福PA' : D.fac[i], y: this.roadY(s + 110) }; });
+    this.endY = this.roadY(this.direction === 'east' ? 0 : this.ROUTE_LEN);
   }
   populate() {
     const R = this.R, season = this.season, D = this.D;
@@ -268,7 +268,7 @@ export class LongWorld {
     for (let s = S_START; s < this.ROUTE_LEN + 5; s += 8) {
       const a = this.pos(s, 0), b = this.pos(s + 8, 0), y0 = Math.min(a[1], b[1]) - 1.5, y1 = Math.max(a[1], b[1]) + 1.3;
       this.W.addWall(a[0], a[2], b[0], b[2], y0, y1); // 中央分離帯（反対車線へは出られない）
-      for (const side of [1, -1]) { if (side > 0 && this.fac.some(f => s + 8 > f.s - 170 && s < f.s + 420)) continue;
+      for (const side of [1, -1]) { if (this.fac.some(f => side === f.side && s + 8 > f.s - 170 && s < f.s + 420)) continue;
         const p = this.pos(s, side * 9.95), q = this.pos(s + 8, side * 9.95); this.W.addWall(p[0], p[2], q[0], q[2], y0, y1); }
     }
     // 出発地の奥（s=-150）と、目的地の駐車場の囲い
@@ -327,7 +327,7 @@ export class LongWorld {
     const seven=K(1.55),sp=this.pos(seven,36),sf=[[sp[0]-8,sp[2]-24],[sp[0]+8,sp[2]-24],[sp[0]-8,sp[2]+24],[sp[0]+8,sp[2]+24]];if(this.footprintClear(sf,seven,13))this.add(seven,g=>{const p=this.pos(seven,36);g.s.box(p[0]-8,this.terrainH(seven,36),p[2]-24,p[0]+8,this.terrainH(seven,36)+18,p[2]+24,{c:[.65,.67,.67]});for(let z=-20;z<=20;z+=5)g.s.box(p[0]-8,this.terrainH(seven,36)+2,p[2]+z,p[0]-7.7,this.terrainH(seven,36)+16,p[2]+z+1.4,{c:[.38,.4,.41]});});
     // 永福PAは上り線専用。下り本線の反対側に遠景の建物と案内板だけ置く。
     const eif=K(30.85), ep=this.pos(eif,-17);
-    this.add(eif,g=>{const q=this.pos(eif,-17);g.s.box(q[0]-11,q[1],q[2]-20,q[0]+11,q[1]+10,q[2]+20,{c:[.66,.67,.68],side:{lay:L.OFFICE,tw:4,th:9}});const sign=this.greenSign(['永福PA','上り線'],{scale:.8}),a=this.pos(eif,-11),b=this.pos(eif,-16);g.s.panel(a[0],a[2],b[0],b[2],a[1]+10,a[1]+13,.05,[-Math.sin(this.at(eif).h),0,-Math.cos(this.at(eif).h)],{c:[1,1,1],mat:16,lay:sign});void ep;});
+    if(this.direction!=='east') this.add(eif,g=>{const q=this.pos(eif,-17);g.s.box(q[0]-11,q[1],q[2]-20,q[0]+11,q[1]+10,q[2]+20,{c:[.66,.67,.68],side:{lay:L.OFFICE,tw:4,th:9}});const sign=this.greenSign(['永福PA','上り線'],{scale:.8}),a=this.pos(eif,-11),b=this.pos(eif,-16);g.s.panel(a[0],a[2],b[0],b[2],a[1]+10,a[1]+13,.05,[-Math.sin(this.at(eif).h),0,-Math.cos(this.at(eif).h)],{c:[1,1,1],mat:16,lay:sign});void ep;});
     // 大橋JCTの屋根付き円筒ドラムと屋上緑化帯。旧開放ループは生成しない。
     const d=K(23.5), at=this.at(d), center=this.pos(d,110), radius=75;
     this.add(d,g=>{ for(let i=0;i<48;i++){ const a=i*Math.PI/24,b=(i+1)*Math.PI/24, s0=d+Math.cos(a)*radius, u0=110+Math.sin(a)*radius, s1=d+Math.cos(b)*radius,u1=110+Math.sin(b)*radius, p0=this.pos(s0,u0),p1=this.pos(s1,u1); g.s.quadN([p0[0],p0[1]-16,p0[2]],[p1[0],p1[1]-16,p1[2]],[p1[0],p1[1]+9,p1[2]],[p0[0],p0[1]+9,p0[2]],[0,0,1],{c:[.57,.6,.62]}); g.s.quadN([p0[0],p0[1]+9,p0[2]],[p1[0],p1[1]+9,p1[2]],[p1[0],p1[1]+10,p1[2]],[p0[0],p0[1]+10,p0[2]],[0,1,0],{c:[.28,.45,.3]}); g.s.quadN([p0[0],p0[1]-2,p0[2]],[p1[0],p1[1]-2,p1[2]],[p1[0],p1[1]-1.4,p1[2]],[p0[0],p0[1]-1.4,p0[2]],[0,0,1],{c:[.45,.48,.5]}); } });
@@ -506,7 +506,7 @@ export class LongWorld {
       for (const [name, s] of D.landmarks) if (!named.has(name)) { named.add(name); add('urban:'+name, 'landmark', name, s, s + 150, 0); }
     }
     if (this.season === 'autumn') add('maple:hill', 'maple', '紅葉の丘', 1000, 2000, 0); // 秋は全線が紅葉の木（tree:'maple'）。丘の区間を見どころに
-    add('dest', 'dest', D.dest, this.ROUTE_LEN - 1500, this.ROUTE_LEN, 0);
+    add('dest', 'dest', D.dest, this.direction === 'east' ? 0 : this.ROUTE_LEN - 1500, this.direction === 'east' ? 1500 : this.ROUTE_LEN, 0);
     return out.sort((p, q) => p.s0 - q.s0);
   }
   segment(g, s0, s1) {
@@ -520,7 +520,7 @@ export class LongWorld {
       const asph = { c: W ? [0.62, 0.64, 0.68] : [0.95, 0.95, 0.95], mat: 7, lay: L.ASPHALT };
       strip(-7.9, 7.9, asph);
       for (const side of [1, -1]) {
-        const fopen = side > 0 && this.fac.some(f => e > f.s - 170 && s < f.s + 420);
+        const fopen = this.fac.some(f => side === f.side && e > f.s - 170 && s < f.s + 420);
         if (W) strip(side > 0 ? 7.9 : -EDGE_U, side > 0 ? EDGE_U : -7.9, { c: [0.9, 0.92, 0.96], lay: L.WHITE });
         else strip(side > 0 ? 7.9 : -EDGE_U, side > 0 ? EDGE_U : -7.9, asph);
         if (!fopen) strip(side > 0 ? EDGE_U : -ROAD_HW, side > 0 ? ROAD_HW : -EDGE_U, { c: W ? [0.95, 0.96, 1] : [0.55, 0.53, 0.5], lay: W ? L.WHITE : L.ROCK });
@@ -534,7 +534,7 @@ export class LongWorld {
         for (const [p, r] of [[a0, b0], [a1, b1]]) g.s.quadN([p[0], p[1], p[2]], [r[0], r[1], r[2]], [r[0], r[1] + y, r[2]], [p[0], p[1] + y, p[2]], [0, 0, 1], cc); }
       // ガードレール（橋は高欄、冬は雪をかぶる）
       for (const side of [1, -1]) {
-        if (side > 0 && this.fac.some(f => e > f.s - 170 && s < f.s + 420)) continue;
+        if (this.fac.some(f => side === f.side && e > f.s - 170 && s < f.s + 420)) continue;
         const u = side * 9.95;
         if (br) { const p = this.pos(s, u), r = this.pos(e, u), c = { c: [0.82, 0.82, 0.8] }; g.s.quadN([p[0], p[1], p[2]], [r[0], r[1], r[2]], [r[0], r[1] + 1.1, r[2]], [p[0], p[1] + 1.1, p[2]], [side, 0, 0], c); g.s.quadN([p[0], p[1] + 1.1, p[2]], [r[0], r[1] + 1.1, r[2]], [r[0] + 0, r[1] + 1.1, r[2]], [p[0], p[1] + 1.1, p[2]], [0, 1, 0], c); }
         else if (!tun) { if (season === 'shutoko') { const p=this.pos(s,side*9.45,.15),r=this.pos(e,side*9.45,.15),p2=this.pos(s,side*9.45,1.15),r2=this.pos(e,side*9.45,1.15); g.s.quadN(p,r,r2,p2,[side,0,0],{c:[.66,.68,.69]}); } else { const p = this.pos(s, u, 0.55), r = this.pos(e, u, 0.55); g.det.beam(p, r, 0.06, { c: [0.85, 0.86, 0.85] }); for (let t = s; t < e; t += 4) { const pp = this.pos(t, u); g.det.box(pp[0] - 0.05, pp[1], pp[2] - 0.05, pp[0] + 0.05, pp[1] + 0.75, pp[2] + 0.05, { c: [0.7, 0.7, 0.7] }); }
@@ -688,7 +688,7 @@ export class LongWorld {
     for (const side of [1, -1]) {
       const w = this.zoneW((s0 + s1) / 2, side); let best = 'hills', bw = 0; for (const t in w) if (w[t] > bw) { bw = w[t]; best = t; }
       const urbanCore = season === 'shutoko' && (s0 >= 15255 && s0 < 34142);
-      const facZone = side > 0 && this.fac.some(f => s1 > f.s - 240 && s0 < f.s + 460);
+      const facZone = this.fac.some(f => side === f.side && s1 > f.s - 240 && s0 < f.s + 460);
       if (season === 'shutoko') this.shutokoFabric(g,s0,s1,side,R);
       if (facZone) continue;
       const place = (u, kind, sc) => { const s = s0 + R() * (s1 - s0), p = this.pos(s, side * u), y = this.terrainH(s, side * u); if (y < -1 && season === 'summer') return; this.tree(g.s, kind, p[0], y - 0.2, p[2], sc, R); };
@@ -817,7 +817,7 @@ export class LongWorld {
   }
   // ---------- 休憩施設（SA・PA・道の駅） ----------
   facility(f) {
-    const at = this.at(f.s), ox = at.x, oz = at.z, h = at.h, y = f.y, season = this.season, R = rng(Math.floor(f.s));
+    const at = this.at(f.s), ox = at.x, oz = at.z, h = at.h + (f.side < 0 ? Math.PI : 0), y = f.y, season = this.season, R = rng(Math.floor(f.s));
     const W = this.W, toW = (lx, lz) => [ox + Math.cos(h) * lx + Math.sin(h) * lz, oz - Math.sin(h) * lx + Math.cos(h) * lz];
     const asph = { c: season === 'winter' ? [0.7, 0.72, 0.76] : [0.95, 0.95, 0.95], mat: 7, lay: L.ASPHALT }, white = { c: [1, 1, 1] }, snowy = season === 'winter';
     const sign = this.greenSign(f.type === 'MICHI' ? ['道の駅', f.name.replace('道の駅 ', '')] : [f.name], { bg: f.type === 'MICHI' ? '#2c6e2c' : '#0b6b3a' });
@@ -920,7 +920,7 @@ export class LongWorld {
   farGB(s) { const p = this.at(s), ch = this.chunkAt(p.x, p.z); this.farL = this.farL || new Map(); let gb = this.farL.get(ch); if (!gb) this.farL.set(ch, gb = new GB()); return gb; }
   facFar(f, B, sign) {
     const at = this.at(f.s), gb = this.farGB(f.s + 100), y = f.y, se = this.season, big = f.type === 'SA', michi = f.type === 'MICHI', [x0, z0, x1, z1] = B, snow = { c: [0.97, 0.98, 1] };
-    gb.setXf(at.x, y, at.z, at.h);
+    gb.setXf(at.x, y, at.z, at.h + (f.side < 0 ? Math.PI : 0));
     if (big) { gb.box(x0, 0, z0, x1, 7.5, z1, LM({ c: [0.92, 0.9, 0.86], side: { lay: L.SHOP, tw: 6, th: 7.5 } })); gb.box(x0 - 3, 7.5, z0 - 2, x1 + 1, 8.1, z1 + 2, LM({ c: [0.35, 0.38, 0.42] })); gb.box(x0 - 0.05, 0.3, z0 + 4, x0, 6.5, z1 - 4, LM({ c: [0.55, 0.7, 0.85] }));
       gb.panel(x0 - 1, (z0 + z1) / 2 - 14, x0 - 1, (z0 + z1) / 2 + 14, 8.3, 11.8, 0.05, [-1, 0, 0], LM({ c: [1, 1, 1], mat: 16, lay: sign })); gb.box(x0 + 4, 0, z1 + 8, x1 - 6, 4.2, z1 + 22, LM({ c: [0.85, 0.82, 0.76] })); }
     else if (michi) { const wood = { c: [0.72, 0.52, 0.33], side: { lay: L.SHOP, tw: 5, th: 5 } };
@@ -951,7 +951,7 @@ export class LongWorld {
   }
   // 目的地：駐車場（クリア判定）と季節ごとの観光地
   destination() {
-    const s = this.ROUTE_LEN, at = this.at(s), y = this.endY, h = at.h, season = this.season, R = rng(99), W = this.W;
+    const s = this.direction === 'east' ? 0 : this.ROUTE_LEN, at = this.at(s), y = this.endY, h = at.h + (this.direction === 'east' ? Math.PI : 0), season = this.season, R = rng(99), W = this.W;
     const toW = (lx, lz) => [at.x + Math.cos(h) * lx + Math.sin(h) * lz, at.z - Math.sin(h) * lx + Math.cos(h) * lz];
     const wall = (a, b) => { const p = toW(...a), q = toW(...b); W.addWall(p[0], p[1], q[0], q[1], y - 2, y + 2); };
     wall([-10, 0], [-45, 10]); wall([-45, 10], [-45, 95]); wall([-45, 95], [45, 95]); wall([45, 95], [45, 10]); wall([45, 10], [10, 0]);

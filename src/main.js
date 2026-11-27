@@ -584,7 +584,7 @@ function tick(dt) {
         const pp = LD.world.project(player.x, player.z);
         for (const c of traffic.cars || []) {
           const ahead = (c.s - pp.s) * (c.dir || 1), lateral = Math.abs(pp.u - c.u);
-          if (c.dir !== 1 || ahead <= 0 || ahead > 130 || lateral > 2.2) continue;
+          if (c.dir !== (LD?.dir || 1) || ahead <= 0 || ahead > 130 || lateral > 2.2) continue;
           const gap = ahead - (c.m?.L || 4.4) / 2 - halfL;
           if (!lead || gap < lead.gap) lead = { gap, speed: Math.max(0, c.v || 0) };
         }
@@ -1028,7 +1028,7 @@ async function startLD(cfg, sv) {
   MM = LD.mm.canvas; MMX0 = LD.mm.x0; MMZ0 = LD.mm.z0; MMS = LD.mm.s; mmLabels = LD.mm.labels;
   weather = LD.D.weather || 'clear'; gameMin = sv && typeof sv.min === 'number' ? sv.min : START_MIN;
   player.city = city;
-  const pose = sv && sv.pos && sv.st.phase === 'drive' ? sv.pos : sv && sv.st.maxS ? LD.poseAtS(Math.max(20, sv.st.maxS)) : LD.startPose();
+  const pose = sv && sv.pos && sv.st.phase === 'drive' ? sv.pos : sv && sv.st.maxS ? LD.poseAtS(Math.max(20, LD.routeS(sv.st.maxS))) : LD.startPose();
   player.reset(pose.x, pose.z, pose.yaw, (pose.y || 0) + 1); player.cruiseV = null; lastPos = null; gSpd = 0; cam.mode = -1;
   { const g = new GB(); buildPassengersInCar(g, cfg.passengers, cfg.season); if (car.pass) R.free(car.pass); car.pass = g.count ? R.mesh(g.build()) : null; }
   document.body.classList.add('ld'); $('pWarp').closest('.row').hidden = true; $('pRespawn').textContent = '道路に戻る（動けないとき）';
@@ -1037,7 +1037,7 @@ async function startLD(cfg, sv) {
   state = 'drive'; show(null); setHud(true); markToggles(); ldMusic.setScene('drive');
   if (sv && sv.st.phase === 'rest' && sv.st.restFac) { const f = LD.world.fac.find(q => q.id === sv.st.restFac); if (f) LD.finishRest(f); } // 休憩ムービー中に中断していた場合は休憩を済ませて出口から
   else if (sv && sv.st.phase === 'ending') LD.startEnding();
-  else if (!sv) { toast('09:00　水瀬東ICを出発しました', 3600); LD.saveNow(); }
+  else if (!sv) { toast(`09:00　${cfg.season === 'shutoko' ? (cfg.direction === 'east' && cfg.startKm === 41.3 ? '調布IC' : `${cfg.startKm || 0}km地点`) : '水瀬東IC'}を出発しました`, 3600); LD.saveNow(); }
   else toast(`${hhmm(gameMin)}　長距離ドライブを再開しました`, 2400);
 }
 // 修正102：曲名の表示（HUD の曲名チップ＋切り替え時に短い案内）と、次の曲へ

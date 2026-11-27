@@ -49,8 +49,8 @@ class LDTraffic {
       let gap = 1e9, lead = null; for (const o of this.cars) if (o !== c && o.dir === c.dir && o.lane === c.lane) { const d = (o.s - c.s) * c.dir; if (d > 0 && d < gap) { gap = d; lead = o; } }
       const pd = (ps - c.s) * c.dir; if (pd > 0 && Math.abs(pp.u - c.u) < 2.2 && pd < gap) { gap = pd; lead = { v: Math.max(0, player.vx) * (c.dir > 0 ? 1 : -1) * c.dir }; }
       // 休憩施設の減速車線・加速車線（合流）の付近：走行車線の車は速度帯の下限（75km/h）まで落とし、加速車線から合流してくる自車には道を譲る
-      const nearFac = c.dir > 0 && c.lane === 0 && facs.some(f => c.s > f.s - 200 && c.s < f.s + 440);
-      if (nearFac && pp.u > 7.6 && pp.u < 14 && pd > -5 && pd < 70 && pd < gap) { gap = Math.max(pd, 1); lead = { v: Math.max(0, player.vx) }; }
+      const nearFac = c.dir === w.dir && c.lane === 0 && facs.some(f => f.side === c.dir && c.dir * (c.s - f.s) > -200 && c.dir * (c.s - f.s) < 440);
+      if (nearFac && pp.u * c.dir > 7.6 && pp.u * c.dir < 14 && pd > -5 && pd < 70 && pd < gap) { gap = Math.max(pd, 1); lead = { v: Math.max(0, player.vx) }; }
       c.v0 = this.laneV(c, c.lane); if (nearFac) c.v0 = Math.min(c.v0, 75 / 3.6);
       let vt = c.v0 * (opt && opt.speedK || 1);
       // 車間距離：速度に応じて（約1.6秒）。詰まったら前の車の速度へなめらかに合わせる
@@ -58,10 +58,10 @@ class LDTraffic {
       if (lead && gap < safe + 25) vt = Math.min(vt, Math.max(0, lead.v) + (gap - safe) * 0.12);
       // 走行車線で詰まったら追越車線へ（空いていれば）。大型車は追越車線へ出ない
       c.laneT -= dt;
-      const free1 = !this.cars.some(o => o !== c && o.dir === c.dir && o.lane === 1 && ((o.s - c.s) * c.dir > -45 && (o.s - c.s) * c.dir < 40)) && !(c.dir > 0 && Math.abs(pp.u - LANE_U[1]) < 2 && ps - c.s > -45 && ps - c.s < 35);
+      const free1 = !this.cars.some(o => o !== c && o.dir === c.dir && o.lane === 1 && ((o.s - c.s) * c.dir > -45 && (o.s - c.s) * c.dir < 40)) && !(Math.abs(pp.u - c.dir * LANE_U[1]) < 2 && (ps - c.s) * c.dir > -45 && (ps - c.s) * c.dir < 35);
       if (c.lane === 0 && !c.big && lead && gap < safe + 35 && lead.v < c.vS / 3.6 - 0.5 && c.laneT <= 0 && free1) { c.lane = 1; c.laneT = 4; }
       // 追越車線は追い越しが終わって前が空いていれば走行車線へ戻る（キープレフト）
-      const free0 = !this.cars.some(o => o !== c && o.dir === c.dir && o.lane === 0 && ((o.s - c.s) * c.dir > -30 && (o.s - c.s) * c.dir < 60)) && !(c.dir > 0 && Math.abs(pp.u - LANE_U[0]) < 2 && ps - c.s > -30 && ps - c.s < 60);
+      const free0 = !this.cars.some(o => o !== c && o.dir === c.dir && o.lane === 0 && ((o.s - c.s) * c.dir > -30 && (o.s - c.s) * c.dir < 60)) && !(Math.abs(pp.u - c.dir * LANE_U[0]) < 2 && (ps - c.s) * c.dir > -30 && (ps - c.s) * c.dir < 60);
       if (c.lane === 1 && (!lead || gap > 150) && c.laneT <= 0 && this.R() < dt * 0.04 && free0) { c.lane = 0; c.laneT = 6; }
       const ut = c.dir * LANE_U[c.lane]; c.u += clamp(ut - c.u, -1.2 * dt, 1.2 * dt);
       c.brake = vt < c.v - 0.3; c.v += clamp(vt - c.v, -4 * dt, 1.6 * dt);
@@ -76,7 +76,7 @@ export class LongDrive {
   // ctx：{ R, toast, $, snd, getMin, setMin, player, onMovie(kind, info, done) }
   constructor(ctx, cfg, sv = null) {
     this.ctx = ctx; this.cfg = cfg; this.season = cfg.season; this.D = SEASONS[cfg.season];
-    this.world = new LongWorld(cfg.season); this.city = this.world.W;
+    this.direction = cfg.direction === 'east' ? 'east' : 'west'; this.dir = this.direction === 'east' ? -1 : 1; this.world = new LongWorld(cfg.season, this.direction); this.D = this.world.D; this.city = this.world.W;
     this.traffic = new LDTraffic(this.world);
     this.peds = { list: [], update() { } };
     this.st = sv && sv.st ? sv.st : { totalKm: 0, driveMin: 0, contMin: 0, fatigue: 0, rests: 0, restedIds: [], restLog: [], phase: 'drive', startAt: Date.now(), maxS: 0, notice: 0 };
@@ -86,8 +86,10 @@ export class LongDrive {
     this.nav = this.makeNav(); this.minimap();
   }
   get flow() { return this.world.TIME_SCALE / 60; }
-  startPose() { const p = this.world.pos(20, LANE_U[0]), at = this.world.at(20); return { x: p[0], z: p[2], yaw: at.h, y: p[1] }; }
-  poseAtS(s, u = LANE_U[0]) { const p = this.world.pos(s, u), at = this.world.at(s); return { x: p[0], z: p[2], yaw: at.h, y: p[1] }; }
+  routeS(progress) { return this.dir > 0 ? progress : this.world.ROUTE_LEN - progress; }
+  progressAtS(s) { return this.dir > 0 ? s : this.world.ROUTE_LEN - s; }
+  startPose() { const km = Number(this.cfg.startKm) || 0, starts = [[0,0],[1.8,2034],[8.4,12204],[9.7,14093],[12.3,18524],[15.9,23173],[19.3,26587],[22.2,32253],[23.5,34142],[27.5,40244],[31.3,44821],[33.5,48671],[37.9,54482],[41.3,60000]], s = starts.find(q => q[0] === km)?.[1] ?? km * 1000 / this.world.DIST_SCALE, p = this.world.pos(s, this.dir * LANE_U[0]), at = this.world.at(s); return { x: p[0], z: p[2], yaw: at.h + (this.dir < 0 ? Math.PI : 0), y: p[1] }; }
+  poseAtS(s, u = LANE_U[0]) { const p = this.world.pos(s, this.dir * u), at = this.world.at(s); return { x: p[0], z: p[2], yaw: at.h + (this.dir < 0 ? Math.PI : 0), y: p[1] }; }
   progressS(player) { const p = this.world.project(player.x, player.z); return p.s; }
   // 毎フレーム（運転中）
   update(dt, player, gSpd) {
@@ -97,27 +99,27 @@ export class LongDrive {
     this.lastPos = [player.x, player.z];
     st.driveMin += min; st.contMin += min;
     st.fatigue = clamp(st.fatigue + min * (st.fatigue < 90 ? 90 / 240 : 10 / 60), 0, 100);
-    const p = w.project(player.x, player.z); st.maxS = Math.max(st.maxS, p.s); this.s = p.s; this.u = p.u;
+    const p = w.project(player.x, player.z); const progress = this.progressAtS(p.s); st.maxS = Math.max(st.maxS, progress); this.s = p.s; this.progress = progress; this.u = p.u;
     this.avgV += (clamp(gSpd * 3.6, 30, 130) - this.avgV) * (1 - Math.exp(-dt / 25));
     // 4時間の前後で休憩を強く勧める（案内だけ。操作は奪わない）
     // 修正109〜112：同乗者のセリフ・ラジオ案内・天気の変化・エコ運転の採点（施設に入る判定より先に。字幕は main が poll() で出す）
-    { const pi = player.input || {}; this.ev.update(dt, { s: p.s, u: p.u, kmh: gSpd * 3.6, thr: pi.thr || 0, brk: pi.brk || 0, steer: pi.steer || 0, cruise: player.cruiseV != null, gear: player.gear, engineOn: player.engineOn !== false, gameMin: this.ctx.getMin(), inTunnel: w.inTunnelS(p.s) }); }
+    { const pi = player.input || {}; this.ev.update(dt, { s: progress, u: p.u, kmh: gSpd * 3.6, thr: pi.thr || 0, brk: pi.brk || 0, steer: pi.steer || 0, cruise: player.cruiseV != null, gear: player.gear, engineOn: player.engineOn !== false, gameMin: this.ctx.getMin(), inTunnel: w.inTunnelS(p.s) }); }
     const next = this.nextFac();
     if (st.contMin >= 210 && st.notice < 1) { st.notice = 1; this.ctx.toast(`連続運転がまもなく4時間です。${next ? next.name + ' で休憩しましょう' : '休憩しましょう'}`, 4000); this.ctx.snd && this.ctx.snd.stationBell(); }
     if (st.contMin >= 240 && st.notice < 2) { st.notice = 2; this.ctx.toast(`4時間連続で運転しました。休憩が必要です${next ? '（' + next.name + ' まで ' + this.kmTo(next.s).toFixed(0) + 'km）' : ''}`, 5000); this.ctx.snd && this.ctx.snd.stationBell(); }
     // 休憩施設の入口 → 休憩ムービー
     const f = w.facAt(p.s, p.u);
-    if (f && p.u * f.side > 9.6 && p.s - f.s > -6 && p.s - f.s < 40) { if (this.restLock !== f.id) { this.restLock = f.id; this.startRest(f); return; } }
+    if (f && p.u * f.side > 9.6 && this.dir * (p.s - f.s) > -6 && this.dir * (p.s - f.s) < 40) { if (this.restLock !== f.id) { this.restLock = f.id; this.startRest(f); return; } }
     else if (!f) this.restLock = null;
     // 目的地の駐車場 → エンディング
-    if (p.s > w.ROUTE_LEN + 4 && Math.abs(p.u) < 45) { this.startEnding(); return; }
+    if ((this.dir > 0 ? p.s > w.ROUTE_LEN + 4 : p.s < -4) && Math.abs(p.u) < 45) { this.startEnding(); return; }
     this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 0.2; this.hud(player, gSpd); }
     this.saveT -= dt; if (this.saveT <= 0) { this.saveT = 10; this.save(player); }
   }
-  kmTo(s) { return Math.max(0, (s - (this.s || 0))) * this.world.DIST_SCALE / 1000; }
-  nextFac() { const s = this.s || 0; return this.world.fac.find(f => f.s > s - 20); }
-  remainKm() { return Math.max(0, this.world.ROUTE_LEN - (this.s || 0)) * this.world.DIST_SCALE / 1000; }
-  etaMin() { return this.ctx.getMin() + (this.world.ROUTE_LEN - (this.s || 0)) / Math.max(30, this.avgV) * 0.06; }
+  kmTo(s) { return Math.max(0, this.dir * (s - (this.s || 0))) * this.world.DIST_SCALE / 1000; }
+  nextFac() { const s = this.s || 0; return this.world.fac.find(f => this.dir * (f.s - s) > -20); }
+  remainKm() { const d = this.dir > 0 ? this.world.ROUTE_LEN - (this.s || 0) : (this.s || 0); return Math.max(0, d) * this.world.DIST_SCALE / 1000; }
+  etaMin() { const d = this.dir > 0 ? this.world.ROUTE_LEN - (this.s || 0) : (this.s || 0); return this.ctx.getMin() + Math.max(0, d) / Math.max(30, this.avgV) * 0.06; }
   hud(player, gSpd) {
     const $ = this.ctx.$, st = this.st, fs = fatigueStage(st.fatigue), next = this.nextFac(), el = $('ldhud'); if (!el) return;
     $('ldTime').textContent = hhmm(this.ctx.getMin());
@@ -143,11 +145,11 @@ export class LongDrive {
     const st = this.st, from = this.ctx.getMin();
     this.ctx.setMin(from + REST_MIN);
     st.contMin = 0; st.fatigue = Math.max(0, st.fatigue - 75); st.rests++; st.restedIds.push(f.id); st.restLog.push({ id: f.id, name: f.name, at: hhmm(from), to: hhmm(from + REST_MIN) }); st.notice = 0; st.phase = 'drive'; st.restFac = null;
-    st.totalKm += Math.max(0, f.s + 250 - (st.restEnterS ?? f.s)) * this.world.DIST_SCALE / 1000; st.restEnterS = null;
+    st.totalKm += Math.max(0, this.dir * (f.s + this.dir * 250 - (st.restEnterS ?? f.s))) * this.world.DIST_SCALE / 1000; st.restEnterS = null;
     this.restLock = f.id;
     // 出口付近（加速車線の手前）に置いて本線へ
-    const pl = this.ctx.player, ex = this.world.pos(f.s + 250, 11.7), at = this.world.at(f.s + 250);
-    pl.reset(ex[0], ex[2], at.h, f.y + 1); pl.parked = false; this.lastPos = null;
+    const exitS = f.s + this.dir * 250, pl = this.ctx.player, ex = this.world.pos(exitS, this.dir * 11.7), at = this.world.at(exitS);
+    pl.reset(ex[0], ex[2], at.h + (this.dir < 0 ? Math.PI : 0), f.y + 1); pl.parked = false; this.lastPos = null;
     this.ev.restEnd(f);
     this.ctx.toast(`${f.name}で45分休憩しました（${hhmm(from)}〜${hhmm(from + REST_MIN)}）。連続運転時間をリセット`, 4200);
     this.saveNow();
@@ -159,7 +161,7 @@ export class LongDrive {
   }
   finishEnding() {
     const st = this.st; st.phase = 'clear';
-    const rec = { season: this.season, seasonName: SEASON_NAMES[this.season], dest: this.D.dest, km: st.totalKm, driveMin: st.driveMin, totalMin: (st.arriveMin || this.ctx.getMin()) - START_MIN, rests: st.rests, people: this.party.length, restLog: st.restLog, at: Date.now(), eco: this.ev.ecoResult(), tod: LDEvents.tod(st.arriveMin ?? this.ctx.getMin()), arrive: hhmm(st.arriveMin ?? this.ctx.getMin()) }; // 修正110・111
+    const rec = { season: this.season, seasonName: this.direction === 'east' ? '首都高・東行き（調布→一之江）' : SEASON_NAMES[this.season], dest: this.D.dest, km: st.totalKm, driveMin: st.driveMin, totalMin: (st.arriveMin || this.ctx.getMin()) - START_MIN, rests: st.rests, people: this.party.length, restLog: st.restLog, at: Date.now(), eco: this.ev.ecoResult(), tod: LDEvents.tod(st.arriveMin ?? this.ctx.getMin()), arrive: hhmm(st.arriveMin ?? this.ctx.getMin()) }; // 修正110・111
     addClear(rec); clearLD(); this.clearRec = rec;
     this.ctx.onClear(rec);
   }
