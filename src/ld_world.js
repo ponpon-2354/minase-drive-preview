@@ -304,10 +304,10 @@ export class LongWorld {
     }
     // 汐留のガラス高層群は右至近（-側）。幅を持たせて直接配置する。
     for (const [s,side,color,h,w] of [[K(14.35),-1,[.48,.62,.68],78,13],[K(14.65),-1,[.58,.68,.72],98,16],[K(14.78),-1,[.52,.6,.67],86,14]]) {
-      this.add(s,g=>{const q=this.pos(s,side*16),y=q[1]-6;g.s.box(q[0]-w/2,y,q[2]-8,q[0]+w/2,y+h,q[2]+8,{c:color,side:{lay:L.OFFICE,tw:5,th:16}});});
+      this.add(s,g=>{const q=this.pos(s,side*21),y=q[1]-6;g.s.box(q[0]-w/2,y,q[2]-8,q[0]+w/2,y+h,q[2]+8,{c:color,side:{lay:L.OFFICE,tw:5,th:16}});});
     }
     // 浜崎橋JCTの太い橋脚は路側すれすれ（走行レーン外）。
-    for(const km of [14.8,14.88]) this.add(K(km),g=>{const s=K(km),p=this.pos(s,11.1),y=this.terrainH(s,11.1);g.s.box(p[0]-1.8,y,p[2]-2.1,p[0]+1.8,y+18,p[2]+2.1,{c:[.58,.6,.61]});});
+    for(const km of [14.8,14.88]) this.add(K(km),g=>{const s=K(km),p=this.pos(s,12.6),y=this.terrainH(s,12.6);g.s.box(p[0]-1.8,y,p[2]-2.1,p[0]+1.8,y+18,p[2]+2.1,{c:[.58,.6,.61]});});
     // 芝公園の緑地と増上寺を左手の低い位置に置く。
     this.add(K(15.65),g=>{for(let i=0;i<13;i++){const s=K(15.2+i*.075),p=this.pos(s,13.5+(i%3)*2);this.tree(g.s,'green',p[0],this.terrainH(s,13.5)-.2,p[2],1.4,this.R);}const s=K(15.7),p=this.pos(s,22),y=p[1]-4;g.s.box(p[0]-9,y,p[2]-8,p[0]+9,y+8,p[2]+8,{c:[.72,.68,.57]});g.s.gable(p[0]-10,p[2]-9,p[0]+10,p[2]+9,y+8,5,{c:[.56,.24,.18],lay:L.KAWARA,tw:2,gc:[.72,.68,.57]});});
     // 東京タワーは左手至近。脚の開いた格子塔として作る（赤白の帯＋展望台2段）。
@@ -322,7 +322,7 @@ export class LongWorld {
     // 森タワーは右側の路側に寄せた先細りの高層。
     this.add(K(20.0),g=>{const s=K(20.0),p=this.pos(s,-12),y=this.terrainH(s,-12);for(let yy=0;yy<92;yy+=4){const w=13*(1-.42*yy/92),c=yy%8===0?[.39,.46,.5]:[.5,.56,.59];g.s.box(p[0]-w,y+yy,p[2]-w,p[0]+w,y+yy+4,p[2]+w,{c,side:{lay:L.OFFICE,tw:5,th:14}});}g.s.box(p[0]-9,y+91,p[2]-9,p[0]+9,y+96,p[2]+9,{c:[.88,.9,.86]});g.s.box(p[0]-9.2,y+90.4,p[2]-9.2,p[0]+9.2,y+91.5,p[2]+9.2,{c:[.9,.91,.87]});g.s.box(p[0]-7.8,y+96,p[2]-7.8,p[0]+7.8,y+97.2,p[2]+7.8,{c:[.45,.51,.54],side:{lay:L.OFFICE,tw:5,th:14}});});
     // 箱崎はビル3階のPA。対向側に見える永福PAは休憩施設データに含めない。
-    const s=K(9.7), p=this.pos(s,-16); this.add(s,g=>{ const q=this.pos(s,-16); g.s.box(q[0]-13,q[1]+2,q[2]-24,q[0]+13,q[1]+15,q[2]+24,{c:[.62,.65,.67],side:{lay:L.OFFICE,tw:5,th:12}}); g.s.box(q[0]-14,q[1]+15,q[2]-25,q[0]+14,q[1]+16,q[2]+25,{c:[.38,.4,.42]}); g.s.box(q[0]-4,q[1]+16,q[2]-17,q[0]+4,q[1]+17,q[2]+17,{c:[.12,.42,.3]}); });
+    const s=K(9.7), p=this.pos(s,-30); this.add(s,g=>{ const q=this.pos(s,-30); g.s.box(q[0]-11,q[1]-6,q[2]-20,q[0]+11,q[1]+9,q[2]+20,{c:[.62,.65,.67],side:{lay:L.OFFICE,tw:5,th:12}}); g.s.box(q[0]-12,q[1]+9,q[2]-21,q[0]+12,q[1]+10,q[2]+21,{c:[.38,.4,.42]}); g.s.box(q[0]-4,q[1]+10,q[2]-14,q[0]+4,q[1]+11,q[2]+14,{c:[.12,.42,.3]}); });
     // 7号左手の縦スリット入りコンクリート施設と、両国JCTの低い右側擁壁。
     const seven=K(1.55),sp=this.pos(seven,36),sf=[[sp[0]-8,sp[2]-24],[sp[0]+8,sp[2]-24],[sp[0]-8,sp[2]+24],[sp[0]+8,sp[2]+24]];if(this.footprintClear(sf,seven,13))this.add(seven,g=>{const p=this.pos(seven,36);g.s.box(p[0]-8,this.terrainH(seven,36),p[2]-24,p[0]+8,this.terrainH(seven,36)+18,p[2]+24,{c:[.65,.67,.67]});for(let z=-20;z<=20;z+=5)g.s.box(p[0]-8,this.terrainH(seven,36)+2,p[2]+z,p[0]-7.7,this.terrainH(seven,36)+16,p[2]+z+1.4,{c:[.38,.4,.41]});});
     // 永福PAは上り線専用。下り本線の反対側に遠景の建物と案内板だけ置く。
@@ -345,7 +345,7 @@ export class LongWorld {
     // 4号線高井戸出口の路面案内ペイント。
     const paintS=K(32.8); this.add(paintS,g=>{for(const u of [2.8,5.8]){const a=this.pos(paintS-3,u-1,.035),b=this.pos(paintS-3,u+1,.035),c=this.pos(paintS+7,u+1,.035),d=this.pos(paintS+7,u-1,.035);g.d2.quadN(a,b,c,d,[0,1,0],{c:[1,1,1]});}const p=this.pos(paintS,4.3,.04);g.s.setXf(p[0],p[1],p[2],this.at(paintS).h);g.s.box(-2,.01,-3,2,.04,3,{c:[1,1,1]});g.s.clearXf();});
     // 左側の倉庫風建物、赤レンガ風ビル、初台の丸みを持つ高層ビル。
-    for(const [km,side,u,h,w,d,col] of [[9.7,1,35,26,34,38,[.83,.84,.82]],[12.35,-1,32,31,22,20,[.62,.28,.2]],[27.7,1,14,105,28,25,[.64,.69,.72]]]) {const s=K(km),p=this.pos(s,side*u),corners=[[p[0]-w/2,p[2]-d/2],[p[0]+w/2,p[2]-d/2],[p[0]-w/2,p[2]+d/2],[p[0]+w/2,p[2]+d/2]];if(km===27.7||this.footprintClear(corners,s,13))this.add(s,g=>{const q=this.pos(s,side*u),y=this.terrainH(s,side*u);g.s.box(q[0]-w/2,y,q[2]-d/2,q[0]+w/2,y+h,q[2]+d/2,{c:col,side:{lay:L.OFFICE,tw:5,th:14}});if(km===27.7){g.s.box(q[0]-w/2+3,y+h,q[2]-d/2+3,q[0]+w/2-3,y+h+5,q[2]+d/2-3,{c:[.8,.84,.86]});}if(km===27.7)for(let j=0;j<4;j++){const z=q[2]-d/2+j*d/4;g.s.beam([q[0]-w/2,y+h-2,z],[q[0]+w/2,y+h-2,z],.22,{c:[.78,.8,.8]});}});}
+    for(const [km,side,u,h,w,d,col] of [[9.7,1,35,26,34,38,[.83,.84,.82]],[12.35,-1,32,31,22,20,[.62,.28,.2]],[27.7,1,30,105,22,18,[.64,.69,.72]]]) {const s=K(km),p=this.pos(s,side*u),corners=[[p[0]-w/2,p[2]-d/2],[p[0]+w/2,p[2]-d/2],[p[0]-w/2,p[2]+d/2],[p[0]+w/2,p[2]+d/2]];if(this.footprintClear(corners,s,13))this.add(s,g=>{const q=this.pos(s,side*u),y=this.terrainH(s,side*u);g.s.box(q[0]-w/2,y,q[2]-d/2,q[0]+w/2,y+h,q[2]+d/2,{c:col,side:{lay:L.OFFICE,tw:5,th:14}});if(km===27.7){g.s.box(q[0]-w/2+3,y+h,q[2]-d/2+3,q[0]+w/2-3,y+h+5,q[2]+d/2-3,{c:[.8,.84,.86]});}if(km===27.7)for(let j=0;j<4;j++){const z=q[2]-d/2+j*d/4;g.s.beam([q[0]-w/2,y+h-2,z],[q[0]+w/2,y+h-2,z],.22,{c:[.78,.8,.8]});}});}
     // スカイツリー：近づくほど大きく見えるよう、左奥に段階配置する（farGBでは視認できなかった）。
     for (const [km,u,h] of [[3.2,120,80],[5.6,95,120],[7.6,72,165],[8.6,58,205]]) {
       const s=K(km); this.add(s,g=>{ const p=this.pos(s,u), y=p[1]-6, w=7+15*(h/205);
@@ -440,11 +440,11 @@ export class LongWorld {
     const lowHomes=kind==='residential'&&(s<K(1.8)||(s>=K(1.8)&&s<K(8.4)&&side>0)||(s>=K(27.5)&&s<K(41.3)));
     const reps=kind==='residential'?2:1;
     for(let k=0;k<reps;k++){
-    const ss=s0+4+(k+.5)/reps*Math.max(2,s1-s0-8)+R()*3, u=side*(kind==='farbank'?95+R()*20:kind==='residential'&&lowHomes?17+R()*9:kind==='residential'?18+R()*15:24+R()*30);
+    const ss=s0+4+(k+.5)/reps*Math.max(2,s1-s0-8)+R()*3, u=side*(kind==='farbank'?95+R()*20:kind==='residential'&&lowHomes?19+R()*9:kind==='residential'?18+R()*15:24+R()*30);
     const p=this.pos(ss,u),w=lowHomes?7+R()*6:kind==='warehouse'?12+R()*10:8+R()*11,d=lowHomes?7+R()*6:8+R()*13;
     let h=lo+R()*(hi-lo);if(lowHomes)h=7+R()*4;if(kind==='farbank')h=12+R()*5;if(h>cap)h=Math.max(lo,cap-1);
     const corners=[[p[0]-w/2,p[2]-d/2],[p[0]+w/2,p[2]-d/2],[p[0]-w/2,p[2]+d/2],[p[0]+w/2,p[2]+d/2]];
-    if(h<lo||!this.footprintClear(corners,ss,lowHomes?10.5:13))continue;
+    if(h<lo||!this.footprintClear(corners,ss,13))continue;
     const y=lowHomes?this.roadY(ss)-1.5:kind==='farbank'?this.roadY(ss)-6:this.terrainH(ss,u), colors=kind==='warehouse'?[[.82,.82,.79],[.75,.77,.77],[.86,.84,.8]]:kind==='office'?[[.55,.62,.67],[.65,.69,.7],[.72,.73,.71]]:kind==='residential'?[[.79,.76,.7],[.72,.74,.73],[.83,.81,.76]]:[[.84,.83,.79],[.78,.8,.8],[.76,.65,.59]], c=colors[(R()*colors.length)|0];
     g.s.box(p[0]-w/2,y,p[2]-d/2,p[0]+w/2,y+h,p[2]+d/2,{c,side:{lay:kind==='warehouse'?L.OFFICE:L.OFFICE2,tw:5,th:12}});
     if(kind==='warehouse'){
@@ -604,6 +604,7 @@ export class LongWorld {
   }
   // 修正117：橋のアーチ（チャンクの範囲 s0〜s1 の分だけ作る）。B=[始点, 終点, 橋名]。アーチの高さは橋長の約12%（6〜22m）
   bridgeArch(g, s0, s1, B) {
+    if (this.season === 'shutoko') return; // 首都高の橋は桁橋・アーチ吊り材は置かない（荒川は斜張橋フィーチャで表現）
     const [a, b, nm] = B, L0 = b - a, rise = Math.min(22, Math.max(6, L0 * 0.12)), col = { c: { spring: [0.92, 0.45, 0.5], summer: [0.95, 0.96, 0.98], autumn: [0.85, 0.3, 0.18], winter: [0.3, 0.5, 0.85] }[this.season] || [0.8, 0.8, 0.8] };
     const H = s => { const t = clamp((s - a) / L0, 0, 1); return 1.1 + rise * 4 * t * (1 - t); };
     for (const side of [1, -1]) { const u = side * 10.6;
