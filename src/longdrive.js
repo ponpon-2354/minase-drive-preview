@@ -22,6 +22,7 @@ class LDTraffic {
   carL(c, lN) { return [lN, c.brake ? 1 : 0, 0, 0]; }
   remove(c) { const i = this.cars.indexOf(c); if (i >= 0) this.cars.splice(i, 1); }
   // 修正105：車線ごとの速度帯。走行車線（lane 0）は 75〜90km/h（大型車・トラックは下限寄り 75〜80km/h）、追越車線（lane 1）は 95〜130km/h。
+  // 修正150：首都高コースは千葉の指定で全区間 走行車線70〜90km/h（大型は70〜80）、追越車線95〜105km/h に変更。
   // 個体ごとに両方の車線の巡航速度を持ち、車線を移ったらその車線の速度帯で走る（大型車は追越車線へ出ない）
   laneV(c, lane) { return (lane === 1 ? c.vF : c.vS) / 3.6; }
   spawn(ps, ahead) {
@@ -30,7 +31,7 @@ class LDTraffic {
     const lane = big ? 0 : R() < (ahead ? 0.55 : 0.4) ? 0 : 1, u = dir * LANE_U[lane];
     let s = ps + (ahead ? 1 : -1) * (350 + R() * 300); if (s < 20 || s > this.w.ROUTE_LEN - 60) return;
     if (this.cars.some(c => c.dir === dir && c.lane === lane && Math.abs(c.s - s) < 60)) return;
-    const col = pickColor(m, R), urban = this.w.season === 'shutoko' && s < 48671, vS = big ? (urban ? 55 + R() * 5 : 75 + R() * 5) : (urban ? 55 + R() * 12 : 75 + R() * 15), vF = urban ? 65 + R() * 20 : 95 + R() * 35;
+    const col = pickColor(m, R), urban = this.w.season === 'shutoko', vS = big ? (urban ? 70 + R() * 10 : 75 + R() * 5) : (urban ? 70 + R() * 20 : 75 + R() * 15), vF = urban ? 95 + R() * 10 : 95 + R() * 35;
     const c = { s, u, dir, lane, vS, vF, big, m, tint: col.rgb, plate: { cls: plateClass(m), i: (R() * 64) | 0 }, x: 0, z: 0, y: 0, yaw: 0, slope: 0, brake: false, laneT: 0 };
     c.v = c.v0 = this.laneV(c, lane); this.cars.push(c);
   }

@@ -61,7 +61,7 @@ export const SEASONS = {
     routeLen: 60000, distScale: 41300 / 60000, timeScale: 1, facKm: [['hakozaki','pa',9.7]],
     grass: [0.46,0.5,0.48], far: [0.52,0.56,0.58], tree: 'green',
     limits: [[0,12204,60],[12204,14093,60],[14093,15255,40],[15255,21502,40],[21502,34142,60],[34142,39954,60],[39954,48671,60],[48671,60000,80]],
-    curves: [[12204,14093,-9],[14093,15255,15],[15255,21502,-19],[21502,26587,18],[26587,34142,-14],[34142,39954,10],[39954,48671,-8],[48671,60000,4]],
+    curves: [[12204,14093,-9],[14093,15255,15],[15255,21502,-19],[21502,26587,25],[26587,34142,-14],[34142,39954,10],[39954,48671,-8],[48671,60000,4]],
     elev: [[-150,0],[0,0],[12204,12],[17580,10],[21502,12],[30365,2],[34142,-35],[39954,-30],[40244,10],[48671,5],[54482,5],[60003,0],[60100,0]],
     zones: [[-150,2034,'cityLo','river'],[2034,12204,'cityLo','river'],[12204,15255,'cityMix','river'],[15255,17580,'cityCore','cityCore'],[17580,20195,'cityCore','cityCore'],[20195,30365,'cityCore','cityCore'],[30365,34142,'park','cityCore'],[34142,39954,'tunnel','tunnel'],[39954,44821,'cityLo','suburb'],[44821,48671,'suburb','suburb'],[48671,60003,'suburb','suburb']],
     tunnels: [[30365,30583,'青山トンネル'],[34142,39954,'山手トンネル']],
@@ -288,6 +288,8 @@ export class LongWorld {
     this.add(K(.48),g=>{const s=K(.48),p=this.pos(s,0),top=p[1]+36;g.s.box(p[0]-2,p[1]-2,p[2]-2,p[0]+2,top,p[2]+2,{c:[.68,.7,.72]});for(let d=-36;d<=36;d+=6){const q=this.pos(K(.48)+d,0);g.s.beam([p[0],top,p[2]],[q[0],q[1]+.5,q[2]],.5,{c:[.93,.94,.95]});}});
     // 両国国技館：低い大建築と緑の寄棟屋根をJCT右下に置く。
     this.add(K(8.4),g=>{const s=K(8.4),p=this.pos(s,-27),y=p[1]-4;g.s.box(p[0]-23,y,p[2]-27,p[0]+23,y+13,p[2]+27,{c:[.76,.74,.67]});g.s.gable(p[0]-24,p[2]-28,p[0]+24,p[2]+28,y+13,9,{c:[.22,.38,.26],lay:L.ROOF,tw:2,gc:[.76,.74,.67]});});
+    // 中央道区間：低い遮音壁の外に街路樹を連ね、走行中に緑が壁上へ見えるようにする。
+    for(let ss=K(33.5);ss<K(41.3);ss+=22) this.add(ss,g=>{for(const side of [-1,1]){const s=ss+4+(this.R()-.5)*8,u=side*(14+this.R()*3),p=this.pos(s,u),y=this.terrainH(s,u);this.tree(g.s,'green',p[0],y,p[2],1.7+this.R()*.7,this.R);}});
     // 本線通過型のETC料金所。側道へ進入しない門型設備。
     for (const [km, label] of [[6.4, '錦糸町本線料金所'], [14.05, '料金所'], [37.5, '三鷹本線料金所']]) {
       const s = K(km), sign = this.greenSign([label, 'ETC'], { scale: .8 });
@@ -317,7 +319,7 @@ export class LongWorld {
       g.s.box(p[0]-4,y+80,p[2]-4,p[0]+4,y+85,p[2]+4,{c:[.88,.86,.8]});
       g.s.box(p[0]-.7,y+H,p[2]-.7,p[0]+.7,y+H+14,p[2]+.7,{c:[.85,.3,.16]});});
     // 森タワーは右側の路側に寄せた先細りの高層。
-    this.add(K(20.0),g=>{const s=K(20.0),p=this.pos(s,-12),y=this.terrainH(s,-12);for(let yy=0;yy<92;yy+=4){const w=13*(1-.42*yy/92),c=yy%8===0?[.43,.5,.54]:[.58,.63,.66];g.s.box(p[0]-w,y+yy,p[2]-w,p[0]+w,y+yy+4,p[2]+w,{c});}});
+    this.add(K(20.0),g=>{const s=K(20.0),p=this.pos(s,-12),y=this.terrainH(s,-12);for(let yy=0;yy<92;yy+=4){const w=13*(1-.42*yy/92),c=yy%8===0?[.39,.46,.5]:[.5,.56,.59];g.s.box(p[0]-w,y+yy,p[2]-w,p[0]+w,y+yy+4,p[2]+w,{c,side:{lay:L.OFFICE,tw:5,th:14}});}g.s.box(p[0]-9,y+91,p[2]-9,p[0]+9,y+96,p[2]+9,{c:[.88,.9,.86]});g.s.box(p[0]-9.2,y+90.4,p[2]-9.2,p[0]+9.2,y+91.5,p[2]+9.2,{c:[.9,.91,.87]});g.s.box(p[0]-7.8,y+96,p[2]-7.8,p[0]+7.8,y+97.2,p[2]+7.8,{c:[.45,.51,.54],side:{lay:L.OFFICE,tw:5,th:14}});});
     // 箱崎はビル3階のPA。対向側に見える永福PAは休憩施設データに含めない。
     const s=K(9.7), p=this.pos(s,-16); this.add(s,g=>{ const q=this.pos(s,-16); g.s.box(q[0]-13,q[1]+2,q[2]-24,q[0]+13,q[1]+15,q[2]+24,{c:[.62,.65,.67],side:{lay:L.OFFICE,tw:5,th:12}}); g.s.box(q[0]-14,q[1]+15,q[2]-25,q[0]+14,q[1]+16,q[2]+25,{c:[.38,.4,.42]}); g.s.box(q[0]-4,q[1]+16,q[2]-17,q[0]+4,q[1]+17,q[2]+17,{c:[.12,.42,.3]}); });
     // 7号左手の縦スリット入りコンクリート施設と、両国JCTの低い右側擁壁。
@@ -355,6 +357,34 @@ export class LongWorld {
     { const s=K(28.3); this.add(s,g=>{ const p=this.pos(s,-85), y=p[1]-8;
       for(const dz of [-13,13]){ g.s.box(p[0]-9,y,p[2]+dz-9,p[0]+9,y+130,p[2]+dz+9,{c:[.6,.66,.72]}); g.s.box(p[0]-10,y+130,p[2]+dz-10,p[0]+10,y+135,p[2]+dz+10,{c:[.4,.47,.54]}); }
     }); }
+    // 修正150：区間ごとの目印。既存のランドマークで不足する形状だけを補う。
+    // 麻布台ヒルズ（右）：幅を変えた積層で波打つ上端を表現。
+    { const s=K(17.7),p=this.pos(s,-55),y=this.terrainH(s,-55); this.add(s,g=>{
+      const q=this.pos(s,-55),base=this.terrainH(s,-55);
+      for(const [yy,w,d] of [[0,22,22],[24,20,20],[49,24,21],[76,19,19],[104,15,16],[126,12,13]])
+        g.s.box(q[0]-w/2,base+yy,q[2]-d/2,q[0]+w/2,base+yy+([0,24,49,76,104,126].indexOf(yy)===5?14:26),q[2]+d/2,{c:[.63,.68,.7],side:{lay:L.OFFICE,tw:5,th:16}});
+    }); }
+    // NTTドコモ代々木タワー：塔身と時計塔状の細い上部。
+    { const s=K(28.2),p=this.pos(s,-60),y=this.terrainH(s,-60); this.add(s,g=>{
+      const q=this.pos(s,-60),base=this.terrainH(s,-60);g.s.box(q[0]-7,base,q[2]-7,q[0]+7,base+142,q[2]+7,{c:[.42,.44,.48],side:{lay:L.OFFICE,tw:4,th:12}});
+      g.s.box(q[0]-8,base+142,q[2]-8,q[0]+8,base+147,q[2]+8,{c:[.38,.4,.44]});
+      g.s.box(q[0]-1.4,base+147,q[2]-1.4,q[0]+1.4,base+165,q[2]+1.4,{c:[.55,.57,.6]});
+    }); }
+    // ゆりかもめ高架：本線右側に平行する細い桁と橋脚。
+    for(let ss=K(13.9);ss<K(15.2);ss+=35)this.add(ss,g=>{const a=this.pos(ss,-14),b=this.pos(Math.min(ss+35,K(15.2)),-14);g.s.beam([a[0],a[1]+8,a[2]],[b[0],b[1]+8,b[2]],1.15,{c:[.62,.65,.67]});for(const q of [a,b]){const gy=this.terrainH(ss,-14);g.s.box(q[0]-.35,gy,q[2]-.35,q[0]+.35,q[1]+8,q[2]+.35,{c:[.61,.63,.64]});}});
+    // 日本橋の白い百貨店風建築（左）。
+    {const s=K(10.7);this.add(s,g=>{const p=this.pos(s,20),y=this.terrainH(s,20);g.s.box(p[0]-15,y,p[2]-20,p[0]+15,y+22,p[2]+20,{c:[.88,.87,.82]});g.s.box(p[0]-16,y+19,p[2]-21,p[0]+16,y+22,p[2]+21,{c:[.78,.77,.73]});});}
+    // 銀座の時計塔ビル（右）。
+    {const s=K(12.7);this.add(s,g=>{const p=this.pos(s,-18),y=this.terrainH(s,-18);g.s.box(p[0]-9,y,p[2]-10,p[0]+9,y+25,p[2]+10,{c:[.76,.7,.59]});g.s.box(p[0]-3,y+25,p[2]-3,p[0]+3,y+30,p[2]+3,{c:[.83,.79,.68]});g.s.box(p[0]-1.1,y+27,p[2]-1.1,p[0]+1.1,y+29,p[2]+1.1,{c:[.36,.34,.3]});});}
+    // 浜離宮の低地の緑（汐留タワーの向こう側）。
+    {const s=K(14.3);this.add(s,g=>{for(let i=0;i<22;i++){const ss=s+(i%6)*18,u=-45-Math.floor(i/6)*9,p=this.pos(ss,u),y=this.terrainH(ss,u);this.tree(g.s,'green',p[0],y,p[2],1.2+(i%3)*.2,this.R);}});}
+    // 大橋JCTドラムの縦目地と中段帯。曲線ランプを追加する。
+    this.add(d,g=>{const n=32;for(let i=0;i<n;i++){const a=i*Math.PI*2/n,ss=d+Math.cos(a)*radius,u=110+Math.sin(a)*radius,p=this.pos(ss,u);g.s.beam([p[0],p[1]-16,p[2]],[p[0],p[1]+9,p[2]],.24,{c:[.43,.46,.48]});}
+      for(const yy of [-10,3])for(let i=0;i<48;i++){const a=i*Math.PI/24,b=(i+1)*Math.PI/24,p=this.pos(d+Math.cos(a)*radius,110+Math.sin(a)*radius,yy),q=this.pos(d+Math.cos(b)*radius,110+Math.sin(b)*radius,yy);g.s.beam(p,q,1.05,{c:[.34,.37,.39]});}
+      for(let i=0;i<48;i++){const a=i*Math.PI/24,b=(i+1)*Math.PI/24,p=this.pos(d+Math.cos(a)*(radius+9),110+Math.sin(a)*(radius+9),4),q=this.pos(d+Math.cos(b)*(radius+9),110+Math.sin(b)*(radius+9),4);g.s.beam(p,q,2.2,{c:[.58,.61,.62]});}
+      // 接続ランプを短い曲線デッキとしてドラム外周へ回す。
+      for(let i=0;i<24;i++){const a=-1.15+i*.075,b=a+.075,r=radius+22-i*.32,p=this.pos(d+Math.cos(a)*r,110+Math.sin(a)*r,8+i*.18),q=this.pos(d+Math.cos(b)*(r-.32),110+Math.sin(b)*(r-.32),8+(i+1)*.18),p2=this.pos(d+Math.cos(a)*(r+5),110+Math.sin(a)*(r+5),8+i*.18),q2=this.pos(d+Math.cos(b)*(r+4.68),110+Math.sin(b)*(r+4.68),8+(i+1)*.18);g.s.quadN(p,p2,q2,q,[0,1,0],{c:[.58,.6,.61]});}
+    });
   }
   shutokoLandmarks() {
     const make = (s, side, height, width, color) => {
@@ -364,6 +394,46 @@ export class LongWorld {
       gb.box(side * offset - width/2 - 1, height, -width/2 - 1, side * offset + width/2 + 1, height + 2, width/2 + 1, LM({ c: [0.34,0.4,0.44] })); gb.clearXf();
     };
     // スカイツリーと都庁は shutokoRoadside で近景ジオメトリとして配置する（farGBでは視認できなかったため、ここでは作らない）。
+  }
+  // 首都高専用の区間ファブリック。50mごとに両側の街並みを足し、区間の用途で密度・高さ・造形を変える。
+  shutokoFabric(g,s0,s1,side,R) {
+    const K=km=>km*1000/this.DIST_SCALE, s=(s0+s1)/2;
+    let kind,lo,hi,density;
+    if(s<K(1.8)){kind='warehouse';lo=5;hi=10;density=.68;}
+    else if(s<K(8.4)){kind='mixed';lo=5;hi=14;density=.9;}
+    else if(s<K(9.7)){if(side<0)return;kind='mixed';lo=8;hi=20;density=.9;}
+    else if(s<K(16.4)){kind='office';lo=15;hi=45;density=.96;}
+    else if(s<K(23.5)){kind='signage';lo=10;hi=30;density=.94;}
+    else if(s<K(27.5)) return;
+    else if(s<K(33.5)){kind='residential';lo=7;hi=10;density=.68;}
+    else if(s<K(41.3)){kind='green';lo=5;hi=12;density=.3;}
+    else return;
+    if(this.inTunnelS(s)||this.inBridgeS(s))return;
+    // 川・水路・公園の側は完全に空ける。
+    const zw=this.zoneW(s,side), blocked=zw.river>.18||zw.park>.18||zw.tunnel>.18;
+    if(blocked)return;
+    // 特徴物の前後150m、同じ側はその高さを超える街並みを置かない。
+    const landmarks=[[17.7,-1,140],[28.2,-1,165],[20,-1,92],[23.5,1,0],[10.7,1,22],[12.7,-1,30],[14.3,-1,0],[15.95,1,122],[8.4,-1,13],[14.35,-1,98],[14.65,-1,118],[14.78,-1,106],[29.348,-1,80],[40.244,-1,90]];
+    let cap=Infinity;
+    for(const [km,ls,h] of landmarks)if(ls===side&&Math.abs(s-K(km))<150)cap=Math.min(cap,h);
+    if(R()>density)return;
+    const ss=s0+6+R()*Math.max(2,s1-s0-12), u=side*(kind==='residential'?18+R()*15:24+R()*30);
+    const p=this.pos(ss,u),w=kind==='warehouse'?12+R()*10:8+R()*11,d=8+R()*13;
+    let h=lo+R()*(hi-lo);if(h>cap)h=Math.max(lo,cap-1);
+    const corners=[[p[0]-w/2,p[2]-d/2],[p[0]+w/2,p[2]-d/2],[p[0]-w/2,p[2]+d/2],[p[0]+w/2,p[2]+d/2]];
+    if(h<lo||!this.footprintClear(corners,ss,13))return;
+    const y=this.terrainH(ss,u), colors=kind==='warehouse'?[[.82,.82,.79],[.75,.77,.77],[.86,.84,.8]]:kind==='office'?[[.55,.62,.67],[.65,.69,.7],[.72,.73,.71]]:kind==='residential'?[[.79,.76,.7],[.72,.74,.73],[.83,.81,.76]]:s<K(8.4)?[[.84,.83,.79],[.78,.8,.8],[.76,.65,.59]]:[[.7,.71,.7],[.76,.74,.7],[.62,.67,.69]], c=colors[(R()*colors.length)|0];
+    g.s.box(p[0]-w/2,y,p[2]-d/2,p[0]+w/2,y+h,p[2]+d/2,{c,side:{lay:kind==='warehouse'?L.OFFICE:L.OFFICE2,tw:5,th:12}});
+    if(kind==='warehouse'){
+      g.s.box(p[0]-w/2,y+h-.35,p[2]-d/2,p[0]+w/2,y+h+.15,p[2]+d/2,{c:[.88,.88,.86]});
+    } else if(kind==='residential') {
+      g.s.box(p[0]-w/2-.25,y+h-.45,p[2]-d/2-.25,p[0]+w/2+.25,y+h,p[2]+d/2+.25,{c:[.48,.5,.51]});
+    } else {
+      const face=side>0?-1:1;
+      for(let yy=y+2.2;yy<y+h-1;yy+=3.2)g.s.box(p[0]-w/2+.6,yy,p[2]+face*(d/2+.04),p[0]+w/2-.6,yy+.55,p[2]+face*(d/2+.08),{c:kind==='office'?[.35,.54,.63]:[.4,.48,.51]});
+      if(kind==='signage'&&R()<.4)g.s.box(p[0]-w/2,y+Math.min(h-2,5),p[2]+face*(d/2+.15),p[0]+w/2,y+Math.min(h-1,6.5),p[2]+face*(d/2+.2),{c:[[.84,.28,.2],[.18,.42,.62],[.85,.68,.2]][(R()*3)|0]});
+    }
+    if(kind==='green'&&R()<.65)this.tree(g.s,'green',p[0]+w,p[1],p[2]+d,1.15,R);
   }
   shutokoJcts() {
     // カーブ外側のコンクリート壁に赤白の矢羽根を設置（黄黒板は分岐ノーズ側に限定）。
@@ -593,6 +663,7 @@ export class LongWorld {
       const w = this.zoneW((s0 + s1) / 2, side); let best = 'hills', bw = 0; for (const t in w) if (w[t] > bw) { bw = w[t]; best = t; }
       const urbanCore = season === 'shutoko' && (s0 >= 15255 && s0 < 34142);
       const facZone = side > 0 && this.fac.some(f => s1 > f.s - 240 && s0 < f.s + 460);
+      if (season === 'shutoko') this.shutokoFabric(g,s0,s1,side,R);
       if (facZone) continue;
       const place = (u, kind, sc) => { const s = s0 + R() * (s1 - s0), p = this.pos(s, side * u), y = this.terrainH(s, side * u); if (y < -1 && season === 'summer') return; this.tree(g.s, kind, p[0], y - 0.2, p[2], sc, R); };
       // 並木・トンネル状の並木（桜・紅葉）
@@ -610,7 +681,7 @@ export class LongWorld {
           this.house(g.s, p[0], y, p[2], at.h + (side > 0 ? Math.PI / 2 : -Math.PI / 2), R, best === 'onsen' ? { lamp: true, wall: [0.55, 0.4, 0.3] } : best === 'harbor' ? { wall: [0.85, 0.85, 0.82], roof: [0.25, 0.4, 0.55] } : {}); }
       }
       const shutoBackground = season === 'shutoko' && ((s0 >= K(5.9) && s0 < K(6.35)) || (s0 >= K(10.5) && s0 < K(12.0)) || (s0 >= K(14.0) && s0 < K(14.25)) || (s0 >= K(16.4) && s0 < K(17.2)) || (s0 >= K(19.0) && s0 < K(19.4)) || (s0 >= K(21.5) && s0 < K(22.5)));
-      if (['city', 'cityCore', 'cityMix', 'cityLo', 'suburb'].includes(best) && (season === 'shutoko' ? shutoBackground && s0 % 250 < 50 : s0 % 500 < 50)) {
+      if (['city', 'cityCore', 'cityMix', 'cityLo', 'suburb'].includes(best) && season !== 'shutoko' && s0 % 500 < 50) {
         const count = season === 'shutoko' ? 1 : best === 'cityCore' ? 5 : best === 'cityMix' ? 3 : best === 'city' ? 2 : best === 'suburb' ? 1 : 2;
         for (let k = 0; k < count; k++) {
           const ss = s0 + 4 + R() * Math.max(1, s1 - s0 - 8);

@@ -17,9 +17,10 @@ export class Player {
     this.reset(0, 0, 0);
     this.input = { thr: 0, brk: 0, steer: 0 };
     this.assist = true;
+    this.accOn = false;
   }
   reset(x, z, yaw, cy = 0.5) {
-    Object.assign(this, { scrapeT: 0, cT: null, x, z, y: this.city ? this.city.groundY(x, z, cy) : 0, yaw, vx: 0, vy: 0, w: 0, steer: 0, rpm: 800, gear: 'D', pitch: 0, roll: 0, pv: 0, rv: 0, wheelRot: 0, slip: 0, hit: 0, accel: 0, braking: false, stopT: 0, holdT: 0, stuckT: 0, stuckP: [x, z], surf: 1, aeb: 0, gearReq: false, gearResult: null, wallPivot: 0, needRescue: false, engineOn: true, isArmed: false, isT: 0, restartT: 0, cruiseV: null, bump: 0, parked: true }); // 開始・ワープ直後は最初の操作まで停止を保持（勝手にクリープで動き出さない）
+    Object.assign(this, { scrapeT: 0, cT: null, x, z, y: this.city ? this.city.groundY(x, z, cy) : 0, yaw, vx: 0, vy: 0, w: 0, steer: 0, rpm: 800, gear: 'D', pitch: 0, roll: 0, pv: 0, rv: 0, wheelRot: 0, slip: 0, hit: 0, accel: 0, braking: false, stopT: 0, holdT: 0, stuckT: 0, stuckP: [x, z], surf: 1, aeb: 0, gearReq: false, gearResult: null, wallPivot: 0, needRescue: false, engineOn: true, isArmed: false, isT: 0, restartT: 0, cruiseV: null, accV: null, bump: 0, parked: true }); // 開始・ワープ直後は最初の操作まで停止を保持（勝手にクリープで動き出さない）
     this.onReset && this.onReset(); // 表示（ギア表示・Rボタン）を実状態に合わせる
   }
   // クリープ用：進む向き（D=前、R=後ろ）のバンパーから1.5m以内に車・壁・柱があるか
@@ -74,7 +75,12 @@ export class Player {
     if (!this.engineOn && (brk < 0.3 || thr > 0.05 || this.gearReq || dir < 0)) { this.engineOn = true; this.restartT = 0.35; this.restarted = true; }
     if (this.restartT > 0) this.restartT -= dt;
     // 速度維持（半自動クルーズ）：目標速度に合わせてアクセル開度を自動で調整（ブレーキで解除）
-    if (this.cruiseV != null) { if (brk > 0.05 || dir < 0) this.cruiseV = null; else thr = clamp(0.22 + (this.cruiseV - v) * 0.35 + Math.max(0, this.slope || 0) * 2.5, 0, 0.95); }
+    if (this.cruiseV != null) { if (brk > 0.05 || dir < 0) { this.cruiseV = null; this.accV = null; } else {
+      const targetV = this.accOn && Number.isFinite(this.accV) ? Math.min(this.cruiseV, this.accV) : this.cruiseV;
+      const errV = targetV - v;
+      thr = clamp(0.22 + errV * 0.35 + Math.max(0, this.slope || 0) * 2.5, 0, 0.95);
+      if (this.accOn && Number.isFinite(this.accV) && errV < -0.25) brk = Math.max(brk, clamp(-errV * 0.12, 0, 0.3));
+    } }
     // 制限速度リミッター（ONのとき）：制限速度を超えないよう出力を絞る（下り坂で超えた分は絞ったまま緩やかに戻る）
     this.limitV = null;
     if (this.limiter && this.city.limitAt) { const l = this.city.limitAt(this.x, this.z); if (l) { this.limitV = l.lim / 3.6; } }
